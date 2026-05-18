@@ -1,0 +1,47 @@
+{
+  "trace_name": "sample_agentic_coding_trace",
+  "description": "Small standard-library trace for early simulator smoke tests.",
+  "model": {
+    "layers": 96,
+    "hidden_size": 32768,
+    "num_q_heads": 128,
+    "num_kv_heads": 8,
+    "head_dim": 256,
+    "kv_bytes_per_element": 1,
+    "weight_bytes_per_token": 500000000000,
+    "decode_ops_per_token": 1000000000000,
+    "prefill_ops_per_token": 1000000000000
+  },
+  "hardware": {
+    "local_hbm_bandwidth_bytes_s": 9440000000000,
+    "remote_kv_bandwidth_bytes_s": 1000000000000,
+    "prefill_ops_s": 5000000000000000,
+    "decode_ops_s": 1000000000000000,
+    "collective_latency_s": 0.001,
+    "kv_local_hit_rate": 0.9,
+    "kv_remote_hit_rate": 0.08
+  },
+  "requests": [
+    {
+      "request_id": "repo-edit-001",
+      "tenant_id": "tenant-a",
+      "locality_domain": "rack-0-domain-0",
+      "priority": 10,
+      "prefix_tokens": 131072,
+      "reused_prefix_tokens": 120000,
+      "new_prefill_tokens": 11072,
+      "output_tokens": 1024
+    },
+    {
+      "request_id": "repo-edit-002",
+      "tenant_id": "tenant-a",
+      "locality_domain": "rack-0-domain-0",
+      "priority": 8,
+      "prefix_tokens": 131072,
+      "reused_prefix_tokens": 126000,
+      "new_prefill_tokens": 5072,
+      "output_tokens": 2048
+    }
+  ]
+}
+
