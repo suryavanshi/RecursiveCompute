@@ -642,6 +642,17 @@ Deliverables:
 - `rtl/dma/rcif_gather_scatter.sv`
 - UVM agents for DMA and KV page table bus.
 
+Current RTL status:
+
+- `rcif_kv_tlb.sv` and `rcif_kv_mmu.sv` provide a small map/translate table for
+  smoke-level KV page metadata.
+- `rcif_dma.sv` validates DMA copy descriptors and delegates successful copies
+  to `rcif_gather_scatter.sv`.
+- `rcif_gather_scatter.sv` is a deterministic page-backed SRAM prototype that
+  copies one word per page and reports an XOR checksum. It proves the scheduler
+  and DMA completion boundary for data movement, but it is not yet an HBM, AXI,
+  permission, ECC, or descriptor-fetch implementation.
+
 Exit criteria:
 
 - Random page maps pass against golden model.
@@ -1063,4 +1074,3 @@ External sources used to ground this plan:
 - UCIe 2.0 announcement: https://www.businesswire.com/news/home/20240806155624/en/UCIe-Consortium-Releases-2.0-Specification-Supporting-Manageability-System-Architecture-and-3D-Packaging
 - NVIDIA Blackwell/GB200/NVL72 and TensorRT-LLM/Dynamo sources cited in the local PDF.
 - Cerebras, Groq, d-Matrix, and Etched sources cited in the local PDF.
-

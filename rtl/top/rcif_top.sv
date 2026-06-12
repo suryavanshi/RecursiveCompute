@@ -1,7 +1,9 @@
 module rcif_top #(
   parameter int DATA_W = 64,
   parameter int REQ_ID_W = 32,
-  parameter int STATUS_W = 32
+  parameter int STATUS_W = 32,
+  parameter int CMD_QUEUE_DEPTH = 4,
+  parameter int KV_MMU_ENTRIES = 8
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
@@ -28,7 +30,8 @@ module rcif_top #(
 
   rcif_cmd_queue #(
     .DATA_W(DATA_W),
-    .REQ_ID_W(REQ_ID_W)
+    .REQ_ID_W(REQ_ID_W),
+    .DEPTH(CMD_QUEUE_DEPTH)
   ) u_cmd_queue (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -49,7 +52,8 @@ module rcif_top #(
   rcif_scheduler_stub #(
     .DATA_W(DATA_W),
     .REQ_ID_W(REQ_ID_W),
-    .STATUS_W(STATUS_W)
+    .STATUS_W(STATUS_W),
+    .KV_MMU_ENTRIES(KV_MMU_ENTRIES)
   ) u_scheduler_stub (
     .clk_i(clk_i),
     .rst_ni(rst_ni),

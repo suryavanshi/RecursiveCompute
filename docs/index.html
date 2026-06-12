@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RecursiveCompute | RCIF Infographic</title>
+  <meta name="description" content="RecursiveCompute project infographic for the Recursive Compute Inference Fabric architecture, roadmap, and RL-guided optimization plan.">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #566474;
+      --paper: #f7f5ef;
+      --panel: #ffffff;
+      --line: #d8d4c8;
+      --green: #0f8b6f;
+      --blue: #2867b2;
+      --red: #c4494a;
+      --gold: #b7791f;
+      --dark: #1f2a35;
+      --soft-green: #e3f4ee;
+      --soft-blue: #e7eef9;
+      --soft-red: #fae8e6;
+      --soft-gold: #f7ecd3;
+      --shadow: 0 18px 45px rgba(31, 42, 53, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      min-height: 88vh;
+      display: grid;
+      align-items: center;
+      padding: 34px 0 54px;
+      color: #f8fbfb;
+      background:
+        linear-gradient(115deg, rgba(16, 24, 33, 0.95) 0%, rgba(16, 24, 33, 0.88) 42%, rgba(16, 24, 33, 0.44) 100%),
+        url("assets/rcif-hero.png");
+      background-size: cover;
+      background-position: center;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 62px;
+      font-size: 14px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+
+    .mark {
+      width: 30px;
+      height: 30px;
+      border: 2px solid #71dbc4;
+      position: relative;
+      transform: rotate(45deg);
+    }
+
+    .mark::after {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border: 2px solid #f5c14b;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      padding: 7px 10px;
+      border: 1px solid rgba(248, 251, 251, 0.24);
+      border-radius: 6px;
+      background: rgba(248, 251, 251, 0.08);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+      gap: 40px;
+      align-items: end;
+    }
+
+    .eyebrow {
+      margin: 0 0 13px;
+      color: #71dbc4;
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 880px;
+      font-size: clamp(48px, 8vw, 106px);
+      line-height: 0.91;
+      letter-spacing: 0;
+    }
+
+    .hero-copy {
+      max-width: 720px;
+      margin: 24px 0 0;
+      color: #dce7e6;
+      font-size: clamp(18px, 2vw, 23px);
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 18px;
+      border: 1px solid rgba(248, 251, 251, 0.22);
+      border-radius: 8px;
+      background: rgba(248, 251, 251, 0.09);
+      backdrop-filter: blur(4px);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1.05;
+      color: #ffffff;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 6px;
+      color: #d6dfde;
+      font-size: 13px;
+    }
+
+    section {
+      padding: 76px 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.62fr) minmax(260px, 0.38fr);
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 32px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(32px, 4vw, 58px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      color: var(--dark);
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .tile {
+      min-height: 190px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(31, 42, 53, 0.06);
+    }
+
+    .tile b {
+      display: block;
+      font-size: 18px;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .tile p,
+    .stage p,
+    .module p,
+    .road-card p,
+    .loop-step p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .tile:nth-child(1) {
+      background: var(--soft-green);
+    }
+
+    .tile:nth-child(2) {
+      background: var(--soft-blue);
+    }
+
+    .tile:nth-child(3) {
+      background: var(--soft-gold);
+    }
+
+    .tile:nth-child(4) {
+      background: var(--soft-red);
+    }
+
+    .architecture {
+      background: #fff;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .system-diagram {
+      display: grid;
+      gap: 16px;
+      padding: 20px;
+      border-radius: 8px;
+      background: #f4f7f7;
+      border: 1px solid #d6dedf;
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .diagram-row.five {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .module {
+      position: relative;
+      min-height: 108px;
+      padding: 17px;
+      border: 1px solid #cbd5d9;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .module.dark {
+      color: #fff;
+      background: var(--dark);
+      border-color: var(--dark);
+    }
+
+    .module.green {
+      background: var(--soft-green);
+      border-color: #a7d8cb;
+    }
+
+    .module.blue {
+      background: var(--soft-blue);
+      border-color: #b7cae4;
+    }
+
+    .module.gold {
+      background: var(--soft-gold);
+      border-color: #e2c890;
+    }
+
+    .module.red {
+      background: var(--soft-red);
+      border-color: #e7b9b6;
+    }
+
+    .module b {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 15px;
+    }
+
+    .module.dark p {
+      color: #d7e2e2;
+    }
+
+    .arrow-line {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .arrow-line::before,
+    .arrow-line::after,
+    .arrow-line span:nth-child(3) {
+      content: "";
+      height: 2px;
+      background: #bdc9cd;
+    }
+
+    .arrow {
+      padding: 0 10px;
+    }
+
+    .decode {
+      background: #202a34;
+      color: #f9fbfb;
+    }
+
+    .decode .section-head p {
+      color: #c8d2d4;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      counter-reset: step;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 220px;
+      padding: 20px;
+      border-radius: 8px;
+      background: #f9fbfb;
+      color: var(--ink);
+      border-top: 7px solid var(--green);
+    }
+
+    .stage:nth-child(2) {
+      border-top-color: var(--blue);
+    }
+
+    .stage:nth-child(3) {
+      border-top-color: var(--gold);
+    }
+
+    .stage:nth-child(4) {
+      border-top-color: var(--red);
+    }
+
+    .stage:nth-child(5) {
+      border-top-color: #5a6570;
+    }
+
+    .stage::before {
+      counter-increment: step;
+      content: "0" counter(step);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 30px;
+      margin-bottom: 14px;
+      border-radius: 4px;
+      background: #eef2f2;
+      color: var(--dark);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .stage b {
+      display: block;
+      margin-bottom: 9px;
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .current-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.38fr) minmax(0, 0.62fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .status-panel {
+      padding: 24px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--dark);
+    }
+
+    .status-panel h3,
+    .road-card h3,
+    .loop-step h3 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .status-panel p {
+      color: #d9e2e2;
+      margin: 0 0 18px;
+    }
+
+    .check-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-list li {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 10px;
+      align-items: start;
+      color: #edf4f3;
+    }
+
+    .check-list li::before {
+      content: "";
+      width: 14px;
+      height: 14px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: #71dbc4;
+      box-shadow: inset 0 0 0 4px #243843;
+    }
+
+    .status-table {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 160px 1fr 140px;
+      gap: 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .status-row:first-child {
+      border-top: 0;
+    }
+
+    .status-row > div {
+      padding: 15px 16px;
+    }
+
+    .status-row > div:first-child {
+      font-weight: 800;
+      background: #f3f0e7;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .tag.done {
+      background: var(--soft-green);
+      color: #09644f;
+    }
+
+    .tag.next {
+      background: var(--soft-gold);
+      color: #765014;
+    }
+
+    .tag.plan {
+      background: var(--soft-blue);
+      color: #214f88;
+    }
+
+    .roadmap {
+      background: #fff;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .road-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .road-card {
+      min-height: 300px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(31, 42, 53, 0.07);
+    }
+
+    .road-card .kicker,
+    .loop-step .kicker {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 850;
+      color: #fff;
+      background: var(--green);
+    }
+
+    .road-card:nth-child(2) .kicker {
+      background: var(--blue);
+    }
+
+    .road-card:nth-child(3) .kicker {
+      background: var(--red);
+    }
+
+    .road-card:nth-child(4) .kicker {
+      background: var(--gold);
+    }
+
+    .bullets {
+      margin: 18px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .bullets li + li {
+      margin-top: 8px;
+    }
+
+    .rl-loop {
+      background: #eef5f2;
+    }
+
+    .loop-diagram {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .loop-step {
+      min-height: 250px;
+      padding: 22px;
+      border-radius: 8px;
+      border: 1px solid #cbdcd6;
+      background: #fff;
+    }
+
+    .loop-step:nth-child(2) .kicker {
+      background: var(--blue);
+    }
+
+    .loop-step:nth-child(3) .kicker {
+      background: var(--red);
+    }
+
+    .loop-step:nth-child(4) .kicker {
+      background: var(--gold);
+    }
+
+    .formula {
+      padding: 22px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 15px;
+      overflow-x: auto;
+    }
+
+    .links {
+      background: #fff;
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .doc-link {
+      display: block;
+      min-height: 128px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      text-decoration: none;
+      background: #fff;
+    }
+
+    .doc-link:hover,
+    .doc-link:focus-visible {
+      outline: 3px solid rgba(40, 103, 178, 0.2);
+      border-color: var(--blue);
+    }
+
+    .doc-link b {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--ink);
+    }
+
+    .doc-link span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    footer {
+      padding: 28px 0 34px;
+      color: #dce4e3;
+      background: var(--dark);
+    }
+
+    footer .shell {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    footer a {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    @media (max-width: 960px) {
+      .hero-grid,
+      .section-head,
+      .current-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-stats,
+      .why-grid,
+      .flow,
+      .road-grid,
+      .loop-diagram,
+      .link-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .diagram-row,
+      .diagram-row.five {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow-line {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100% - 22px, 1180px);
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 20px 0 44px;
+      }
+
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        margin-bottom: 44px;
+      }
+
+      .nav-links {
+        justify-content: flex-start;
+      }
+
+      section {
+        padding: 54px 0;
+      }
+
+      .hero-stats,
+      .why-grid,
+      .flow,
+      .road-grid,
+      .loop-diagram,
+      .link-grid,
+      .status-row {
+        grid-template-columns: 1fr;
+      }
+
+      .status-row > div {
+        padding: 12px 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell">
+      <nav class="nav" aria-label="Page sections">
+        <div class="brand"><span class="mark" aria-hidden="true"></span><span>RecursiveCompute</span></div>
+        <div class="nav-links">
+          <a href="#architecture">Architecture</a>
+          <a href="#decode">Decode Flow</a>
+          <a href="#roadmap">Roadmap</a>
+          <a href="#rl">RL Plan</a>
+        </div>
+      </nav>
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Recursive Compute Inference Fabric</p>
+          <h1>Custom inference systems for agentic LLM workloads.</h1>
+          <p class="hero-copy">RCIF is a hardware, simulator, and runtime roadmap for 500B to 5T parameter inference where repeated repository context, KV-cache locality, and deterministic decode latency matter more than training-style peak throughput.</p>
+          <div class="pill-row" aria-label="Project focus areas">
+            <span class="pill">KV-cache virtual memory</span>
+            <span class="pill">Prefix-aware routing</span>
+            <span class="pill">Streaming decode attention</span>
+            <span class="pill">Verilator-backed RTL</span>
+          </div>
+        </div>
+        <div class="hero-stats" aria-label="Project headline targets">
+          <div class="stat"><strong>500B-5T</strong><span>target model scale for rack-level inference planning</span></div>
+          <div class="stat"><strong>256MB-1GB</strong><span>first-silicon on-chip SRAM exploration range</span></div>
+          <div class="stat"><strong>Tiered KV</strong><span>SRAM, HBM, peer/CXL, host, and cold object storage</span></div>
+          <div class="stat"><strong>RL loop</strong><span>future optimizer for routing, batching, KV precision, and eviction</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="why">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Design Center</p>
+            <h2>Agentic coding changes the bottleneck.</h2>
+          </div>
+          <p>The repo treats long-lived coding sessions as the workload that should shape the silicon. The same prompts, files, instructions, and tool outputs recur, so the system makes KV reuse and low-jitter decode first-class architecture goals.</p>
+        </div>
+        <div class="why-grid">
+          <div class="tile"><b>Large stable prefixes</b><p>System prompts, repo summaries, hot files, issue context, and tool results can stay resident as immutable prefix objects.</p></div>
+          <div class="tile"><b>Latency-sensitive decode</b><p>Agents feel slow when token generation has poor p95 or p99 behavior, even if average throughput looks healthy.</p></div>
+          <div class="tile"><b>Hardware-visible KV</b><p>KV pages get virtual addresses, tiers, format tags, refcounts, and routing metadata instead of hiding behind opaque software caches.</p></div>
+          <div class="tile"><b>Deterministic orchestration</b><p>Compiled token-step descriptors and predictable scheduling reduce jitter and make verification more reproducible.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture" class="architecture">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Architecture</p>
+            <h2>RCIF splits prefill, decode, and KV locality.</h2>
+          </div>
+          <p>The first implementation focuses on RC-Token, a decode-oriented ASIC role. Existing GPUs or a simulator can handle prefill while the custom fabric proves the value of KV-resident follow-up turns.</p>
+        </div>
+
+        <div class="system-diagram" aria-label="RCIF system architecture diagram">
+          <div class="diagram-row">
+            <div class="module dark"><b>Agent / API Client</b><p>Requests arrive with project state, session context, and tool-call history.</p></div>
+            <div class="module green"><b>Prefix-Aware Router</b><p>Routes work by prefix hash, workspace affinity, SLA, and current KV residency.</p></div>
+            <div class="module blue"><b>Compiler + Runtime</b><p>Emits token-step graphs, page plans, sharding metadata, and descriptors.</p></div>
+          </div>
+          <div class="arrow-line" aria-hidden="true"><span></span><span class="arrow">route</span><span></span><span class="arrow">compile</span><span></span></div>
+          <div class="diagram-row">
+            <div class="module gold"><b>Context Engine Pool</b><p>GPU or future RC-Context path ingests long prompts and creates KV pages.</p></div>
+            <div class="module dark"><b>RC-Token Group</b><p>Decode ASIC packages own low-jitter token generation and hot KV access.</p></div>
+            <div class="module red"><b>Scale-Up Fabric</b><p>Collectives support tensor parallel, expert parallel, and remote KV movement.</p></div>
+          </div>
+          <div class="arrow-line" aria-hidden="true"><span></span><span class="arrow">fill KV</span><span></span><span class="arrow">decode</span><span></span></div>
+          <div class="diagram-row five">
+            <div class="module green"><b>SRAM</b><p>Hot tiles, queues, scoreboards, TLB, metadata.</p></div>
+            <div class="module blue"><b>HBM</b><p>Active KV pages, weight shards, descriptor buffers.</p></div>
+            <div class="module gold"><b>Peer / CXL</b><p>Remote active KV, warm pages, sharded activations.</p></div>
+            <div class="module red"><b>Host Memory</b><p>Cold-but-reusable prefixes and spill state.</p></div>
+            <div class="module"><b>Object Store</b><p>Persistent cold prefix objects managed by software.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="decode" class="decode">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Token Step</p>
+            <h2>Decode becomes a hardware-scheduled graph.</h2>
+          </div>
+          <p>Firmware prepares descriptors and handles faults, but the per-token critical path is meant to stay in hardware: queue, schedule, gather KV, stream attention, run tensor work, fence collectives, complete.</p>
+        </div>
+        <div class="flow">
+          <div class="stage"><b>Descriptor stream</b><p>Host submits a compiled token-step graph with request IDs, dependency masks, and operation descriptors.</p></div>
+          <div class="stage"><b>Scheduler</b><p>The token scheduler issues work in deterministic order while tracking dependencies and QoS.</p></div>
+          <div class="stage"><b>KV MMU + DMA</b><p>Virtual KV pages translate through the TLB; gather/scatter engines move hot K/V tiles into SRAM.</p></div>
+          <div class="stage"><b>Attention + tensor</b><p>Streaming attention consumes paged KV, then tensor and MLP units produce the next layer output.</p></div>
+          <div class="stage"><b>Collective + complete</b><p>Scale-up links exchange partials for TP/EP layouts before the completion queue reports progress.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="current">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Current RTL Slice</p>
+            <h2>The project is already executable.</h2>
+          </div>
+          <p>RecursiveCompute is not only a concept doc. The repo contains SystemVerilog modules, Python golden models, event-model simulation, descriptor specs, and Verilator smoke tests.</p>
+        </div>
+        <div class="current-grid">
+          <aside class="status-panel">
+            <h3>Milestone state</h3>
+            <p>The implemented slice validates the control plane and early memory semantics before adding full compute engines.</p>
+            <ul class="check-list">
+              <li>Top-level command and completion shell</li>
+              <li>Ready/valid queue and backpressure smoke coverage</li>
+              <li>Scheduler counters and error statuses</li>
+              <li>KV map and translate path through reusable TLB/MMU</li>
+              <li>DMA copy descriptor path with gather/scatter SRAM model</li>
+            </ul>
+          </aside>
+          <div class="status-table" aria-label="Current component status">
+            <div class="status-row"><div>Command Queue</div><div>Absorbs bursts and decouples host timing from scheduler timing.</div><div><span class="tag done">built</span></div></div>
+            <div class="status-row"><div>Scheduler Stub</div><div>Handles NOP, ECHO, counters, KV operations, DMA copy, and structured failures.</div><div><span class="tag done">built</span></div></div>
+            <div class="status-row"><div>KV MMU / TLB</div><div>Maps virtual KV pages to physical pages, tiers, and format tags.</div><div><span class="tag done">built</span></div></div>
+            <div class="status-row"><div>DMA Path</div><div>Runs descriptor validation and a deterministic page-model gather/scatter prototype.</div><div><span class="tag done">prototype</span></div></div>
+            <div class="status-row"><div>Paged Attention</div><div>Next compute-facing slice: compare RTL against golden attention with randomized page layouts.</div><div><span class="tag next">next</span></div></div>
+            <div class="status-row"><div>Tensor / Collective</div><div>Planned engines for quantized matmul, MLP, tensor parallel, and expert parallel traffic.</div><div><span class="tag plan">planned</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="roadmap" class="roadmap">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Roadmap</p>
+            <h2>Build the fabric from measurable slices.</h2>
+          </div>
+          <p>The repo plan stages the hardware in a way that keeps every step testable: characterize workloads, freeze descriptors, prove protocols, then add compute engines against golden models.</p>
+        </div>
+        <div class="road-grid">
+          <div class="road-card">
+            <span class="kicker">Phase 0-1</span>
+            <h3>Workloads and oracles</h3>
+            <p>Use synthetic and real agentic traces to set targets, then maintain Python/PyTorch references for KV, attention, tensor math, and event-model bottleneck analysis.</p>
+            <ul class="bullets">
+              <li>32K to 1M token prefix traces</li>
+              <li>500B dense and 1T-5T MoE sizing</li>
+              <li>TTFT, TPOT, hit-rate, and bandwidth targets</li>
+            </ul>
+          </div>
+          <div class="road-card">
+            <span class="kicker">Phase 2-3</span>
+            <h3>RTL protocols</h3>
+            <p>Stabilize command formats, queues, status codes, KV page semantics, and DMA behavior before the engines become expensive to debug.</p>
+            <ul class="bullets">
+              <li>Descriptor package and register map</li>
+              <li>Fault and event queues</li>
+              <li>KV refcounting, prefetch, and page faults</li>
+            </ul>
+          </div>
+          <div class="road-card">
+            <span class="kicker">Phase 4-5</span>
+            <h3>Decode compute</h3>
+            <p>Add paged streaming attention, then quantized tensor and activation units with tolerance-bounded comparison to golden models.</p>
+            <ul class="bullets">
+              <li>Online softmax over non-contiguous pages</li>
+              <li>GQA and MQA address mapping</li>
+              <li>FP8, FP4, INT8, and INT4 experiments</li>
+            </ul>
+          </div>
+          <div class="road-card">
+            <span class="kicker">Phase 6+</span>
+            <h3>Scale-out system</h3>
+            <p>Move from one token engine to topology-aware groups with collective hardware and runtime partitioning across dense and MoE models.</p>
+            <ul class="bullets">
+              <li>AllReduce, AllGather, ReduceScatter, AllToAll</li>
+              <li>Tensor, expert, and limited pipeline parallelism</li>
+              <li>Prefix locality domains across a rack</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="rl" class="rl-loop">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">RL-Guided Optimization</p>
+            <h2>Future tuning turns hardware counters into policy.</h2>
+          </div>
+          <p>The long-term opportunity is to optimize the system as an adaptive inference environment. Simulator traces and hardware counters can train policies that choose routing, batching, KV tiering, precision, and eviction under latency and power constraints.</p>
+        </div>
+        <div class="loop-diagram">
+          <div class="loop-step">
+            <span class="kicker">Observe</span>
+            <h3>Measure the workload</h3>
+            <p>Collect token traces, prefix hashes, KV hit/miss paths, DMA stalls, tail latency, power, and quality metrics from simulation and RTL counters.</p>
+          </div>
+          <div class="loop-step">
+            <span class="kicker">Act</span>
+            <h3>Choose system knobs</h3>
+            <p>Adjust routing affinity, page size, continuous batching windows, speculative decode, KV precision by tier, and eviction weights.</p>
+          </div>
+          <div class="loop-step">
+            <span class="kicker">Reward</span>
+            <h3>Score the policy</h3>
+            <p>Reward accepted tokens per second while penalizing p95/p99 TPOT, TTFT, quality regressions, page faults, bandwidth spikes, and power cap violations.</p>
+          </div>
+          <div class="loop-step">
+            <span class="kicker">Deploy</span>
+            <h3>Constrain and verify</h3>
+            <p>Ship only bounded policies with safe fallbacks, deterministic replay, tenant isolation, and regression tests over archived agentic traces.</p>
+          </div>
+        </div>
+        <div class="formula" role="img" aria-label="Autotuning objective">
+maximize accepted_tokens_per_second
+subject to TTFT_p95 <= target, TPOT_p95 <= target,
+error_rate <= target, power <= cap, KV_hit_rate >= target
+        </div>
+      </div>
+    </section>
+
+    <section id="docs" class="links">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Read More</p>
+            <h2>Source docs behind the infographic.</h2>
+          </div>
+          <p>These project files provide the technical plan, descriptor contract, verification flow, and workload targets that this page summarizes.</p>
+        </div>
+        <div class="link-grid">
+          <a class="doc-link" href="agentic_llm_inference_asic_plan.md"><b>ASIC Plan</b><span>Hardware and verification roadmap for 500B to 5T agentic inference.</span></a>
+          <a class="doc-link" href="specs/descriptor_format.md"><b>Descriptor Format</b><span>Command opcodes, descriptor fields, KV page layout, and DMA payload layout.</span></a>
+          <a class="doc-link" href="specs/workload_targets.md"><b>Workload Targets</b><span>Agentic coding traces, concurrency, context length, and measurement goals.</span></a>
+          <a class="doc-link" href="specs/verilator_modal_flow.md"><b>Verification Flow</b><span>Modal-backed Verilator lint, build, smoke, and regression flow for RTL proof.</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <span>RecursiveCompute RCIF infographic</span>
+      <span><a href="https://github.com/">GitHub Pages</a> ready static HTML</span>
+    </div>
+  </footer>
+</body>
+</html>

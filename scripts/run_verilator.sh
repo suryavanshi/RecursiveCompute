@@ -8,7 +8,12 @@ BUILD_DIR="${BUILD_DIR:-build/verilator}"
 VERILATOR="${VERILATOR:-verilator}"
 
 RTL_SOURCES=(
+  "${REPO_ROOT}/rtl/common/rcif_desc_pkg.sv"
   "${REPO_ROOT}/rtl/common/rcif_cmd_queue.sv"
+  "${REPO_ROOT}/rtl/kv/rcif_kv_tlb.sv"
+  "${REPO_ROOT}/rtl/kv/rcif_kv_mmu.sv"
+  "${REPO_ROOT}/rtl/dma/rcif_gather_scatter.sv"
+  "${REPO_ROOT}/rtl/dma/rcif_dma.sv"
   "${REPO_ROOT}/rtl/scheduler/rcif_scheduler_stub.sv"
   "${REPO_ROOT}/rtl/top/rcif_top.sv"
 )

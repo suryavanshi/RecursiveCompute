@@ -85,6 +85,10 @@ Current command opcodes:
 | --- | --- | --- |
 | `0x0000` | NOP | Complete with status `0` and result `0`. |
 | `0x0001` | ECHO | Complete with status `0` and result equal to payload. |
+| `0x0010` | GET_COUNTER | Return a scheduler counter selected by payload byte 0. |
+| `0x0020` | KV_MAP | Install or update a virtual KV page mapping. |
+| `0x0021` | KV_TRANSLATE | Translate a virtual KV page through the reference KV MMU. |
+| `0x0030` | DMA_COPY | Validate and complete a DMA copy descriptor through the DMA skeleton. |
 | other | unsupported | Complete with status `1` and result containing opcode. |
 
 Current error status:
@@ -94,6 +98,46 @@ Current error status:
 | `0` | Success. |
 | `1` | Unsupported opcode. |
 | `2` | Unsupported command flags. |
+| `3` | Unsupported counter selector. |
+| `4` | KV translation miss. |
+| `5` | KV MMU table full. |
+| `6` | Reserved KV payload bits were nonzero. |
+| `7` | DMA descriptor length was zero. |
+| `8` | Reserved DMA payload bits were nonzero. |
+| `9` | DMA descriptor page range exceeded the current gather/scatter SRAM model. |
+
+Current counter selectors:
+
+| Selector | Name | Meaning |
+| --- | --- | --- |
+| `0` | accepted | Commands accepted by the scheduler. |
+| `1` | completed | Completions handshaked by the host. |
+| `2` | errors | Commands that completed with nonzero status. |
+
+Current KV command payload:
+
+| Bits | Field | Meaning |
+| --- | --- | --- |
+| `[15:0]` | virtual page | Virtual KV page id. |
+| `[31:16]` | physical page | Physical page id for `KV_MAP`; ignored for `KV_TRANSLATE`. |
+| `[35:32]` | tier | Physical memory tier. |
+| `[39:36]` | format | KV payload format tag. |
+| `[63:40]` | reserved | Must be zero in the current RTL. |
+
+Current DMA command payload:
+
+| Bits | Field | Meaning |
+| --- | --- | --- |
+| `[15:0]` | source page | Source page id for the skeleton copy descriptor. |
+| `[31:16]` | destination page | Destination page id for the skeleton copy descriptor. |
+| `[47:32]` | length | Transfer length in descriptor units; zero is rejected. |
+| `[63:48]` | reserved | Must be zero in the current RTL. |
+
+Successful `DMA_COPY` commands now run through the first `rcif_gather_scatter`
+data-path boundary. The current model copies one word per page between a tiny
+page-backed SRAM array and returns an XOR checksum of the copied words as the
+completion result. This is a deterministic Verilator-visible prototype for
+gather/scatter completion behavior, not a final HBM or AXI memory mover.
 
 ## 5. Decode Dataflow
 
@@ -241,6 +285,10 @@ The first Verilator smoke test exercises:
 - unsupported opcode handling;
 - unsupported flag handling;
 - completion backpressure.
+- command FIFO burst ordering;
+- scheduler counters;
+- KV map, translate, miss, remap, full-table, and reserved-bit behavior.
+- DMA descriptor accept, zero-length fault, and reserved-bit fault behavior.
 
 ## 11. Implementation Milestones
 
@@ -248,9 +296,9 @@ Milestone A, current:
 
 - Modal CPU automation.
 - Top-level command/completion shell.
-- Command queue module.
-- Scheduler stub module.
-- Verilator smoke coverage for basic protocol behavior.
+- Multi-entry command queue module.
+- Scheduler stub module with basic counters.
+- Verilator smoke coverage for basic protocol, queue burst, backpressure, and counter behavior.
 
 Milestone B:
 
@@ -261,9 +309,9 @@ Milestone B:
 
 Milestone C:
 
-- KV MMU reference RTL.
-- Page table test harness.
-- DMA descriptor skeleton.
+- KV MMU reference RTL with a reusable TLB and map/translate command support.
+- Page table smoke coverage through Verilator.
+- DMA descriptor skeleton with smoke coverage.
 
 Milestone D:
 
