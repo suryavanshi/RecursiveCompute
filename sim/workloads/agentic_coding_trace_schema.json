@@ -25,10 +25,15 @@
     },
     "hardware": {
       "type": "object",
-      "required": ["local_hbm_bandwidth_bytes_s", "remote_kv_bandwidth_bytes_s", "prefill_ops_s", "decode_ops_s", "collective_latency_s", "kv_local_hit_rate", "kv_remote_hit_rate"],
+      "required": ["remote_kv_bandwidth_bytes_s", "prefill_ops_s", "decode_ops_s", "collective_latency_s", "kv_local_hit_rate", "kv_remote_hit_rate"],
+      "anyOf": [
+        { "required": ["local_dram_bandwidth_bytes_s"] },
+        { "required": ["local_hbm_bandwidth_bytes_s"] }
+      ],
       "additionalProperties": false,
       "properties": {
-        "local_hbm_bandwidth_bytes_s": { "type": "number", "exclusiveMinimum": 0 },
+        "local_dram_bandwidth_bytes_s": { "type": "number", "exclusiveMinimum": 0 },
+        "local_hbm_bandwidth_bytes_s": { "type": "number", "exclusiveMinimum": 0, "deprecated": true },
         "remote_kv_bandwidth_bytes_s": { "type": "number", "exclusiveMinimum": 0 },
         "prefill_ops_s": { "type": "number", "exclusiveMinimum": 0 },
         "decode_ops_s": { "type": "number", "exclusiveMinimum": 0 },
@@ -58,4 +63,3 @@
     }
   }
 }
-

@@ -34,7 +34,8 @@ The first workload is an agentic coding loop:
 | TTFT p95 after prefix hit | <= 250 ms | <= 100 ms |
 | TPOT p95 | <= 15 ms/token | <= 5 ms/token |
 | KV prefix hit rate | >= 80% | >= 95% |
-| HBM bytes per output token | measured and falling | workload-specific minimum |
+| Local DRAM bytes per output token | measured and falling | workload-specific minimum |
+| Sustained local DRAM efficiency | measured | >= 70% of raw planning bandwidth |
 | Collective share of TPOT | <= 20% | <= 10% |
 
 ## Measurements
@@ -46,8 +47,10 @@ Every simulator and RTL run should report:
 - Output tokens per second under SLA.
 - KV bytes read, written, promoted, and evicted.
 - KV page hit rate by tier.
-- HBM bytes per generated token.
+- Local DRAM bytes per generated token.
+- Local DRAM channel utilization and sustained efficiency.
 - Collective time per token.
+- Collective bytes per token and per-neighbor link utilization.
 - Estimated energy per token once power models exist.
 
 ## Trace Requirements
@@ -56,10 +59,11 @@ Every workload trace must include:
 
 - Model configuration.
 - Hardware configuration.
+- Local DRAM bandwidth, capacity, and efficiency assumptions.
+- Peer-link bandwidth, latency, and topology assumptions.
 - Request list.
 - Prefix reuse amount per request.
 - New prefill tokens per request.
 - Output tokens per request.
 - Expected locality domain.
 - Optional priority and tenant fields.
-

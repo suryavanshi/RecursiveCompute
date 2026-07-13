@@ -2,7 +2,7 @@
 
 This plan turns the source PDF, "Custom ASIC and System Architectures for 1T-10T LLM Inference", into a concrete hardware and verification roadmap for an inference-only accelerator aimed at 500B to 5T parameter agentic workloads, especially coding agents with very large repeated prompts.
 
-The recommended product is not a single monolithic "one chip runs 5T" device. It is a chiplet-based, rack-scale inference system with a custom decode ASIC, a RISC-V control plane, hardware KV-cache paging, and a compiler/runtime that treats prompt reuse as a first-order scheduling signal.
+The recommended product is not a single monolithic "one chip runs 5T" device. It is a rack-scale inference system built from memory-rich decode ASICs, a RISC-V control plane, hardware KV-cache paging, and a compiler/runtime that treats prompt reuse as a first-order scheduling signal. The first-silicon baseline is now LPDDR6-first rather than HBM-first: buy cheap local capacity, enough sustained bandwidth, deterministic scheduling, and board-level ports before buying excess FLOPs or expensive packaging.
 
 ## 1. Product Thesis
 
@@ -17,9 +17,10 @@ Therefore the ASIC should optimize the following, in priority order:
 
 1. KV-cache reuse, movement, compression, and eviction.
 2. Decode TPOT and jitter at small to medium batch sizes.
-3. Prefill throughput for very long prompts.
-4. Topology-aware tensor parallel and expert parallel collectives.
-5. Low-precision inference formats that preserve coding benchmark quality.
+3. Sustained local-memory bandwidth and capacity per dollar.
+4. Topology-aware tensor parallel, expert parallel, and KV movement with explicit collective budgets.
+5. Prefill throughput for very long prompts.
+6. Low-precision inference formats that preserve coding benchmark quality.
 
 The architecture borrows lessons from the PDF's vendor survey:
 
@@ -39,11 +40,13 @@ RCIF is a system composed of:
 
 - D-chip: decode ASIC optimized for token-by-token inference, KV lookup, attention, low-precision GEMV/GEMM, and deterministic scheduling.
 - P-chip: optional prefill ASIC or GPU-compatible prefill tile optimized for long prompt GEMMs and FlashAttention-style tiled attention.
-- K-fabric: hardware/software KV cache fabric spanning on-package SRAM/HBM, local pooled DRAM, CXL-attached memory, and cold object storage.
+- K-fabric: hardware/software KV cache fabric spanning on-chip SRAM, local package/board DRAM, peer memory, CXL-attached memory, and cold object storage.
 - RISC-V management complex: scalar control, firmware, DMA setup, page-table walking, faults, telemetry, and debug.
 - Host runtime: scheduler, prefix router, model partition planner, quantization manager, and compiler.
 
 For first silicon, build only the D-chip. Let existing GPUs handle prefill while D-chip handles decode and KV-resident follow-up turns. This reduces scope and proves the core product value.
+
+First silicon should be a **memory-balanced LPDDR6 RC-Token**, not a miniature GPU. HBM/CoWoS and N3-class logic remain optional variants, but the baseline architecture should assume mature-node logic, many LPDDR6 channels, a modest FP4 tensor array sized from sustained memory bandwidth, and enough peer ports to keep KV and activation traffic off the host.
 
 ### 2.2 D-Chip Block Diagram
 
@@ -57,11 +60,11 @@ flowchart TB
   Sched --> Tensor["Tensor/Matrix Core Array"]
   Sched --> Attn["Streaming Attention Engine"]
   Sched --> DMA["DMA + Gather/Scatter Engines"]
-  DMA --> HBM["HBM Controllers"]
+  DMA --> DRAM["LPDDR6 / Local DRAM Controllers"]
   DMA --> SRAM["On-Chip SRAM Banks"]
   MMU --> TLB["KV TLB + Prefix Page Table Cache"]
   TLB --> DMA
-  HBM --> KV["Paged KV Cache Tier"]
+  DRAM --> KV["Paged KV Cache Tier"]
   SRAM --> HotKV["Hot KV / Tile Buffers"]
   Attn --> Tensor
   Tensor --> Norm["RMSNorm/LayerNorm + Activation Units"]
@@ -74,13 +77,14 @@ flowchart TB
 
 These are planning targets, not claims:
 
-- Process: N4/N3 class for compute die, mature node for IO/base die if chipletized.
-- Package: 2.5D interposer with HBM3E or HBM4 depending on schedule and vendor availability.
-- HBM: 8 to 12 stacks per package. HBM3E offers about 1.18 TB/s per stack in current public Samsung specs; HBM4 public specs point to higher per-stack bandwidth. Use the actual foundry/vendor PDK numbers during implementation.
+- Process: N6/N5-class baseline for a monolithic RC-Token die, with N4/N3 considered only if simulator plus floorplan evidence shows logic density or energy dominates.
+- Package: organic substrate or advanced organic package with many LPDDR6 channels around the die edge. Avoid 2.5D/HBM in the baseline unless the bandwidth model proves LPDDR6 insufficient.
+- Local DRAM: LPDDR6-first. A planning point is 24 channels, 576 data pins, and about 1 TB/s raw local bandwidth at 14.4 Gb/s per pin. Use sustained derated bandwidth in every simulator and sizing calculation; do not treat raw pin bandwidth as delivered bandwidth.
 - On-chip SRAM: 256 MB to 1 GB per D-chip for hot tiles, page metadata, reductions, and deterministic token-step buffering. Multi-GB SRAM belongs in later SRAM chiplets, not first monolithic logic.
-- Scale-up: 16 to 32 high-speed links per package. Support UCIe-compatible chiplet links inside package and a board/rack link protocol outside package.
-- Compute: mixed FP8/FP4/INT4 weight path with BF16/FP16/FP32 accumulation options by layer policy.
+- Scale-up: first target is an 8-chip board locality domain with enough peer ports for a full mesh or close equivalent. Per-neighbor bandwidth, latency, and protocol overhead must be modeled explicitly; PCIe-class x8 links are not assumed to be NVLink-class collectives.
+- Compute: mixed FP8/FP4/INT4 weight path with BF16/FP16/FP32 accumulation options by layer policy. Size the FP4 tensor array from the sustained local-memory roofline, with a baseline planning envelope of roughly 250-350 TFLOP/s per D-chip.
 - Control: RV64GC-class embedded RISC-V cores plus vector extension support for firmware kernels and diagnostics.
+- Power: target roughly 150-200 W per D-chip including local DRAM in early system studies, then refine with PHY, SRAM, link, and array activity factors.
 
 ### 2.4 Cluster Target
 
@@ -93,10 +97,11 @@ For 500B to 5T, expect sharding across many D-chips:
 
 The rack architecture should use:
 
-- Tensor parallel for dense matmul shards.
+- Tensor parallel for dense matmul shards only when the collective schedule closes within TPOT.
 - Expert parallel for MoE routing and expert weights.
 - Pipeline parallel only where inter-stage latency does not hurt TPOT.
 - Prefix/KV locality domains that pin repeated prompts to the same D-chip group when possible.
+- Replication or semi-replication of latency-critical hot layers where LPDDR capacity is cheaper than per-token communication.
 
 ## 3. Instruction Set and RISC Approach
 
@@ -241,7 +246,7 @@ Verification goals:
 
 Purpose: make KV cache a hardware-managed virtual memory resource.
 
-Key idea: each request sees a contiguous virtual KV space. Physical KV pages can live in HBM, SRAM, peer D-chip memory, pooled memory, or host memory. The hardware gathers pages and exposes page faults/promotions to firmware/runtime.
+Key idea: each request sees a contiguous virtual KV space. Physical KV pages can live in local DRAM, SRAM, peer D-chip memory, pooled memory, or host memory. The hardware gathers pages and exposes page faults/promotions to firmware/runtime.
 
 Page metadata:
 
@@ -281,7 +286,7 @@ Purpose: feed attention and tensor engines without per-token stalls.
 
 Required engines:
 
-- HBM DMA engine.
+- Local DRAM DMA engine.
 - SRAM banked crossbar.
 - Gather/scatter engine for KV pages.
 - Bulk weight streaming engine.
@@ -293,7 +298,7 @@ RTL modules:
 - `rcif_dma.sv`
 - `rcif_dma_desc_fetch.sv`
 - `rcif_gather_scatter.sv`
-- `rcif_hbm_adapter.sv`
+- `rcif_local_dram_adapter.sv`
 - `rcif_sram_bank.sv`
 - `rcif_mem_arbiter.sv`
 - `rcif_ecc_scrubber.sv`
@@ -375,7 +380,7 @@ Hardware support:
 Use four tiers:
 
 - Tier 0: SRAM hot tiles and page metadata.
-- Tier 1: local HBM KV pages.
+- Tier 1: local DRAM KV pages, with LPDDR6 as the first-silicon baseline and HBM as an optional variant.
 - Tier 2: peer D-chip or pooled CXL/DRAM memory.
 - Tier 3: host memory or SSD/object store for cold prefixes.
 
@@ -408,6 +413,8 @@ The compiler consumes:
 - Quantization recipe.
 - Sharding plan: TP, EP, PP degrees.
 - Hardware topology.
+- Local DRAM bandwidth, capacity, efficiency, and channel topology.
+- Peer-link bandwidth, latency, and port topology.
 - KV page size and tiering policy.
 - SLA targets: TTFT, TPOT, throughput, power cap.
 
@@ -447,6 +454,7 @@ subject to:
   error_rate <= target_error_rate
   power <= power_cap
   KV_hit_rate >= target_hit_rate
+  collective_share_of_TPOT <= target_collective_share
 ```
 
 Knobs:
@@ -456,6 +464,8 @@ Knobs:
 - Batch size and continuous batching window.
 - Speculative decoding parameters.
 - Tensor/expert parallel degrees.
+- Local DRAM efficiency and channel allocation.
+- Peer-link topology, link latency, and collective protocol.
 - KV precision by layer/head/tier.
 - Routing affinity strength.
 - Eviction policy weights.
@@ -534,9 +544,10 @@ Tasks:
    - FP4/INT4 weights with higher-precision accumulation;
    - KV compression experiments.
 4. Build first event-driven simulator:
-   - memory bandwidth model;
+   - local DRAM bandwidth and efficiency model;
    - KV page hit/miss model;
-   - collectives latency model;
+   - collectives latency and bytes-per-token model;
+   - per-neighbor peer-link bandwidth model;
    - per-layer operation model.
 
 Deliverables:
@@ -552,6 +563,7 @@ Exit criteria:
 - KV capacity target per locality domain.
 - Expected hit-rate advantage from prefix routing.
 - First sharding plan for 500B and 1T.
+- First proof that collective time stays below the TPOT budget for each sharding plan.
 
 ### Phase 1: Executable Golden Model and Simulator
 
@@ -650,7 +662,7 @@ Current RTL status:
   to `rcif_gather_scatter.sv`.
 - `rcif_gather_scatter.sv` is a deterministic page-backed SRAM prototype that
   copies one word per page and reports an XOR checksum. It proves the scheduler
-  and DMA completion boundary for data movement, but it is not yet an HBM, AXI,
+  and DMA completion boundary for data movement, but it is not yet a local DRAM, AXI,
   permission, ECC, or descriptor-fetch implementation.
 
 Exit criteria:
@@ -834,7 +846,7 @@ Goal: validate firmware, descriptors, and memory behavior before ASIC.
 Tasks:
 
 1. Map reduced D-chip to FPGA.
-2. Use external DDR/HBM as HBM proxy.
+2. Use external DDR or HBM as a local-DRAM proxy.
 3. Run small transformer block end-to-end.
 4. Run synthetic agentic traces.
 5. Validate page fault and migration behavior.
@@ -854,10 +866,11 @@ Floorplan principles:
 
 - Place SRAM banks close to attention and tensor consumers.
 - Keep KV metadata SRAM near MMU/TLB/page walker.
-- Place HBM controllers on package-facing edges dictated by interposer.
+- Place LPDDR PHYs/controllers on die edges with realistic keepout, bump, and escape constraints.
 - Keep collective/link blocks near high-speed IO.
 - Keep RISC-V control complex physically separate from high-toggle tensor array.
 - Use hierarchical floorplanning for tensor tiles and attention tiles.
+- Reserve enough edge budget for the chosen mix of LPDDR channels, host IO, and peer mesh links before increasing tensor-array area.
 
 Early physical deliverables:
 
@@ -872,7 +885,7 @@ Clock domains:
 - Control clock.
 - Tensor array clock.
 - Attention engine clock.
-- HBM/user memory clock.
+- Local DRAM/user memory clock.
 - Link/SerDes clock.
 - Always-on/security clock.
 
@@ -881,7 +894,7 @@ CDC/RDC requirements:
 - All async boundaries use audited synchronizers or async FIFOs.
 - Reset release is synchronized per domain.
 - CDC waiver process is mandatory.
-- Link and HBM domains have independent reset containment.
+- Link and local DRAM domains have independent reset containment.
 
 ### Phase 12: Synthesis, Timing, Power, and DFT
 
@@ -889,7 +902,7 @@ Synthesis:
 
 - Build per-block synthesis first.
 - Preserve hierarchy for tensor and attention arrays.
-- Use generated clocks for SRAM/HBM/link domains.
+- Use generated clocks for SRAM/local DRAM/link domains.
 - Run multi-corner multi-mode constraints from the beginning.
 
 Timing:
@@ -915,14 +928,14 @@ DFT:
 - Repair support for large SRAM macros if vendor supports it.
 - JTAG and secure debug.
 - BIST for high-speed links.
-- HBM PHY test integration.
+- LPDDR PHY test integration for baseline silicon; HBM PHY test integration only for HBM variants.
 
 Signoff:
 
 - Static timing analysis across all corners.
 - IR drop and electromigration.
 - Thermal simulation for sustained decode.
-- Signal integrity for HBM and scale-up links.
+- Signal integrity for LPDDR channels and scale-up links.
 - Formal equivalence after synthesis and place-and-route.
 - Gate-level simulation for boot, queue submit, DMA, and token step.
 
@@ -930,15 +943,16 @@ Signoff:
 
 Package:
 
-- 2.5D interposer with HBM.
-- UCIe-style die-to-die interfaces for chiplets where practical.
-- Separate compute, IO/base, and optional SRAM chiplets.
+- Organic substrate or advanced organic package with many LPDDR6 channels as the first-silicon baseline.
+- 2.5D interposer with HBM is a premium variant, not the default product target.
+- UCIe-style die-to-die interfaces for chiplets where practical in later variants.
+- Optional SRAM or IO chiplets only if they improve yield, power, or edge escape after floorplan modeling.
 - Thermal design must assume sustained high utilization, not bursty training only.
 
 Board:
 
 - PCIe/CXL host interface.
-- High-speed scale-up fabric connectors.
+- High-speed scale-up fabric connectors sized for peer activation, KV movement, MoE routing, and metadata traffic.
 - Board management controller.
 - Power telemetry.
 - Secure firmware update path.
@@ -977,7 +991,7 @@ Metrics:
 - TPOT p50/p95/p99.
 - KV hit rate.
 - KV bytes moved per generated token.
-- HBM bytes per generated token.
+- Local DRAM bytes per generated token.
 - Collective time per token.
 - Accepted tokens/sec under SLA.
 - Energy/token.
@@ -994,7 +1008,11 @@ Risk: KV memory system dominates performance.
 
 Risk: scale-out collectives dominate TPOT.
 
-- Mitigation: topology-aware sharding; hardware collective engine; avoid excessive pipeline parallelism.
+- Mitigation: topology-aware sharding; hardware collective engine; avoid excessive pipeline parallelism; replicate hot layers where memory capacity is cheaper than communication.
+
+Risk: LPDDR6 raw bandwidth does not translate to enough sustained bandwidth.
+
+- Mitigation: model efficiency explicitly; track local DRAM bytes/token and bank/channel utilization; leave HBM as a premium variant only if sustained LPDDR bandwidth misses the target.
 
 Risk: FP4/INT4 quality loss on coding tasks.
 
@@ -1071,6 +1089,7 @@ External sources used to ground this plan:
 - RISC-V Vector Extension 1.0 specification: https://docs.riscv.org/reference/isa/unpriv/v-st-ext.html
 - MLPerf Inference documentation: https://docs.mlcommons.org/inference/index_gh/
 - Samsung HBM public product page: https://semiconductor.samsung.com/dram/hbm/
+- JEDEC LPDDR6/JESD209-6 public standard summaries and vendor disclosures for 10.7-14.4 Gb/s-class signaling.
 - UCIe 2.0 announcement: https://www.businesswire.com/news/home/20240806155624/en/UCIe-Consortium-Releases-2.0-Specification-Supporting-Manageability-System-Architecture-and-3D-Packaging
 - NVIDIA Blackwell/GB200/NVL72 and TensorRT-LLM/Dynamo sources cited in the local PDF.
 - Cerebras, Groq, d-Matrix, and Etched sources cited in the local PDF.

@@ -6,7 +6,7 @@ The design center is coding-agent inference: very large prompts, heavy prefix re
 
 ## 1. System View
 
-Recursive Compute Inference Fabric, RCIF, is a rack-scale system built from token-generation ASIC packages plus a runtime that routes requests by prefix/KV locality.
+Recursive Compute Inference Fabric, RCIF, is a rack-scale system built from memory-rich token-generation ASIC packages plus a runtime that routes requests by prefix/KV locality.
 
 ```mermaid
 flowchart TB
@@ -16,12 +16,14 @@ flowchart TB
   Context --> KVXfer["KV Transfer Path"]
   KVXfer --> Token
   Token --> KFabric["KV Fabric"]
-  KFabric --> Hot["Hot Tier: RC-Token HBM/SRAM"]
+  KFabric --> Hot["Hot Tier: RC-Token local DRAM/SRAM"]
   KFabric --> Warm["Warm Tier: peer / pooled DRAM"]
   KFabric --> Cold["Cold Tier: host / SSD / object store"]
 ```
 
 The first implementation focuses on **RC-Token**, the Token Engine ASIC. Context ingestion can initially run on GPUs or a software simulator. RC-Token owns decode, paged KV access, command scheduling, and later tensor/attention engines.
+
+The first silicon baseline is now **LPDDR6-first**, not HBM-first. The product thesis is that decode inference should buy cheap capacity, enough sustained bandwidth, deterministic scheduling, and board-level ports before buying excess FLOPs or expensive packaging. HBM remains a possible premium variant, but RTL and simulator interfaces should name the tier as local DRAM unless the block is truly HBM-specific.
 
 Naming used in this architecture:
 
@@ -36,13 +38,15 @@ Primary goals:
 - Reuse large stable prefixes across agent turns.
 - Make KV cache a hardware-visible virtual memory object.
 - Keep firmware out of the per-token critical path.
-- Support tensor/expert parallel communication without host involvement.
+- Balance compute against local DRAM bandwidth instead of provisioning training-class FLOPs.
+- Support tensor/expert parallel communication without host involvement, while keeping collectives within a measured TPOT budget.
 
 Non-goals for first silicon:
 
 - Training support.
 - General-purpose GPU compatibility.
 - Monolithic support for a full 5T dense model in one package.
+- Assuming every layer can afford dense tensor-parallel all-reduce over PCIe-class links.
 - High-risk analog compute.
 
 ## 3. Token Engine Block Diagram
@@ -61,7 +65,7 @@ flowchart TB
   Sched --> Coll["Collective Engine"]
   KVMMU --> DMA
   DMA --> SRAM["SRAM Banks"]
-  DMA --> HBM["HBM Controllers"]
+  DMA --> DRAM["LPDDR6 / Local DRAM Controllers"]
   Attn --> Tensor
   Tensor --> Cpl["Completion Queue"]
   Coll --> Links["Scale-Up Links"]
@@ -137,7 +141,7 @@ Successful `DMA_COPY` commands now run through the first `rcif_gather_scatter`
 data-path boundary. The current model copies one word per page between a tiny
 page-backed SRAM array and returns an XOR checksum of the copied words as the
 completion result. This is a deterministic Verilator-visible prototype for
-gather/scatter completion behavior, not a final HBM or AXI memory mover.
+gather/scatter completion behavior, not a final local DRAM or AXI memory mover.
 
 ## 5. Decode Dataflow
 
@@ -182,34 +186,48 @@ The hardware must support:
 Initial hierarchy:
 
 - SRAM: hot tiles, metadata, queues, scoreboards, small reductions.
-- HBM: local weights, active KV, descriptor buffers.
+- Local DRAM: LPDDR6 baseline for local weights, active KV, descriptor buffers; HBM optional for premium variants.
 - Peer/package fabric: remote KV or sharded activations.
 - Host/CXL/pooled memory: warm pages and lower-priority spill.
 - SSD/object store: cold prefix persistence managed by software.
 
 The simulator tracks KV bytes per token, local/remote/cold bytes, and weight bytes per token. RTL will gradually expose the same counters.
 
-### 7.1 Memory Hierarchy Diagram
+### 7.1 First-Silicon Memory and Compute Target
+
+The baseline RC-Token package should target many LPDDR6 channels around the die edge. A planning point is 24 channels, 576 data pins, and roughly 1 TB/s raw local DRAM bandwidth at top-bin LPDDR6 signaling. Simulator and floorplan work must derate this to sustained bandwidth after command overhead, refresh, ECC, controller efficiency, and workload access patterns.
+
+The tensor array should be sized from the sustained local-memory roofline. For batch-64 FP4 decode, an ideal weight stream delivers about 256 FLOPs per byte, so a 0.7-1.0 TB/s sustained memory system points to roughly 180-260 TFLOP/s useful FP4 compute. The planning envelope is therefore 250-350 TFLOP/s FP4 per RC-Token, with larger arrays treated as a simulator-proven exception rather than the default.
+
+This target intentionally trades HBM/CoWoS and leading-edge logic density for:
+
+- larger cheap local weight/KV capacity;
+- simpler organic-package economics;
+- enough edge budget for LPDDR PHYs and scale-up links;
+- lower scheduling jitter from local KV residency and deterministic DMA;
+- a fabric budget sized around activations, KV movement, metadata, and MoE traffic, not training gradients.
+
+### 7.2 Memory Hierarchy Diagram
 
 ```mermaid
 flowchart TB
   subgraph TokenEngine["RC-Token Package"]
     SRAM["Tier 0: On-Chip SRAM\nhot tiles, queues, scoreboards,\nTLB, page metadata"]
-    HBM["Tier 1: Local HBM\nactive KV pages, weight shards,\ndescriptor buffers"]
-    SRAM <--> HBM
+    DRAM["Tier 1: Local DRAM\nLPDDR6 baseline, HBM optional\nactive KV pages, weight shards,\ndescriptor buffers"]
+    SRAM <--> DRAM
   end
 
-  HBM <--> Peer["Tier 2a: Peer RC-Token HBM\nremote active KV,\nsharded activations"]
-  HBM <--> Pooled["Tier 2b: Pooled DRAM / CXL\nwarm KV pages,\nlower-priority spill"]
+  DRAM <--> Peer["Tier 2a: Peer RC-Token local DRAM\nremote active KV,\nsharded activations"]
+  DRAM <--> Pooled["Tier 2b: Pooled DRAM / CXL\nwarm KV pages,\nlower-priority spill"]
   Pooled <--> Host["Tier 3: Host Memory\ncold-but-reusable prefixes"]
   Host <--> Store["Tier 4: SSD / Object Store\npersistent cold prefix objects"]
 
   Router["Prefix-Aware Router"] --> SRAM
-  Router --> HBM
+  Router --> DRAM
   Router --> Pooled
 ```
 
-### 7.2 On-Chip SRAM Estimate
+### 7.3 On-Chip SRAM Estimate
 
 The first RC-Token target should budget **512 MB of on-chip SRAM** as the baseline, with a practical exploration range of **256 MB to 1 GB** depending on process, die area, SRAM compiler options, and how much is moved into separate SRAM chiplets.
 
@@ -249,13 +267,16 @@ Compute engines are staged in this order:
 
 The first real compute target is streaming decode attention over paged KV. The tensor array follows once descriptor formats and KV reads are stable.
 
+The tensor array is a bandwidth-balanced decode array, not a maximal FLOP island. It should support FP8/FP4/INT4 weight paths with higher-precision accumulation, but the area budget should stop once sustained local DRAM bandwidth, SRAM reuse, and collective stalls become the limiting factors. Simulator reports must show memory time, compute time, and collective time separately before increasing array size.
+
 ## 9. Scale-Out
 
 Large models require model parallelism:
 
-- Tensor parallel for dense projections.
+- Tensor parallel for dense projections only when the collective budget closes.
 - Expert parallel for MoE experts.
 - Pipeline parallel only when the latency tradeoff is acceptable.
+- Replicated or semi-replicated small hot layers when memory capacity allows it and it removes per-token collectives.
 
 The collective engine should eventually provide:
 
@@ -265,7 +286,7 @@ The collective engine should eventually provide:
 - Broadcast.
 - AllToAll.
 
-The runtime owns topology-aware placement so repeated agent sessions stay near their KV.
+The runtime owns topology-aware placement so repeated agent sessions stay near their KV. First-silicon mesh assumptions should be conservative: a full 8-chip group can be modeled as seven peer ports per chip, but per-neighbor bandwidth and latency must be explicit simulator inputs. The collective engine is optimized first for small activation exchange, KV migration, MoE routing, and metadata broadcasts. Dense all-reduce on every layer is a risk to be proven, not a baseline assumption.
 
 ## 10. Verification Strategy
 

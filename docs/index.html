@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RecursiveCompute | RCIF Infographic</title>
-  <meta name="description" content="RecursiveCompute project infographic for the Recursive Compute Inference Fabric architecture, roadmap, and RL-guided optimization plan.">
+  <title>RecursiveCompute | Memory-Rich Inference</title>
+  <meta name="description" content="RecursiveCompute infographic for an LPDDR6-first, memory-balanced agentic LLM decode architecture.">
   <style>
     :root {
       color-scheme: light;
@@ -218,6 +218,80 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
+    }
+
+    .roofline {
+      color: #f8fbfb;
+      background: #202a34;
+    }
+
+    .roofline .section-head p {
+      color: #c8d2d4;
+    }
+
+    .roofline-flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .roofline-stage {
+      min-height: 194px;
+      padding: 20px;
+      border: 1px solid rgba(248, 251, 251, 0.18);
+      border-top: 7px solid #71dbc4;
+      border-radius: 8px;
+      background: rgba(248, 251, 251, 0.08);
+    }
+
+    .roofline-stage:nth-of-type(3) {
+      border-top-color: #7baae8;
+    }
+
+    .roofline-stage:nth-of-type(5) {
+      border-top-color: #f5c14b;
+    }
+
+    .roofline-stage:nth-of-type(7) {
+      border-top-color: #ef8c87;
+    }
+
+    .roofline-stage strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 31px;
+      line-height: 1;
+      color: #ffffff;
+    }
+
+    .roofline-stage b {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .roofline-stage p {
+      margin: 0;
+      color: #d2ddde;
+      font-size: 14px;
+    }
+
+    .roofline-arrow {
+      display: grid;
+      place-items: center;
+      min-width: 36px;
+      color: #9fb2b4;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .roofline-note {
+      margin: 18px 0 0;
+      color: #c8d2d4;
+      font-size: 15px;
     }
 
     .tile {
@@ -685,6 +759,7 @@
 
       .hero-stats,
       .why-grid,
+      .roofline-flow,
       .flow,
       .road-grid,
       .loop-diagram,
@@ -695,6 +770,10 @@
       .diagram-row,
       .diagram-row.five {
         grid-template-columns: 1fr;
+      }
+
+      .roofline-arrow {
+        display: none;
       }
 
       .arrow-line {
@@ -728,6 +807,7 @@
 
       .hero-stats,
       .why-grid,
+      .roofline-flow,
       .flow,
       .road-grid,
       .loop-diagram,
@@ -749,6 +829,7 @@
         <div class="brand"><span class="mark" aria-hidden="true"></span><span>RecursiveCompute</span></div>
         <div class="nav-links">
           <a href="#architecture">Architecture</a>
+          <a href="#roofline">Memory Roofline</a>
           <a href="#decode">Decode Flow</a>
           <a href="#roadmap">Roadmap</a>
           <a href="#rl">RL Plan</a>
@@ -757,20 +838,20 @@
       <div class="hero-grid">
         <div>
           <p class="eyebrow">Recursive Compute Inference Fabric</p>
-          <h1>Custom inference systems for agentic LLM workloads.</h1>
-          <p class="hero-copy">RCIF is a hardware, simulator, and runtime roadmap for 500B to 5T parameter inference where repeated repository context, KV-cache locality, and deterministic decode latency matter more than training-style peak throughput.</p>
+          <h1>Memory-rich decode for agentic LLMs.</h1>
+          <p class="hero-copy">RCIF is an LPDDR6-first hardware, simulator, and runtime roadmap for 500B to 5T parameter inference. It trades surplus training-style FLOPs for local capacity, sustained bandwidth, deterministic token scheduling, and explicit scale-up proof.</p>
           <div class="pill-row" aria-label="Project focus areas">
             <span class="pill">KV-cache virtual memory</span>
             <span class="pill">Prefix-aware routing</span>
-            <span class="pill">Streaming decode attention</span>
-            <span class="pill">Verilator-backed RTL</span>
+            <span class="pill">LPDDR6-first local DRAM</span>
+            <span class="pill">Collective-budgeted scale-up</span>
           </div>
         </div>
         <div class="hero-stats" aria-label="Project headline targets">
-          <div class="stat"><strong>500B-5T</strong><span>target model scale for rack-level inference planning</span></div>
-          <div class="stat"><strong>256MB-1GB</strong><span>first-silicon on-chip SRAM exploration range</span></div>
-          <div class="stat"><strong>Tiered KV</strong><span>SRAM, HBM, peer/CXL, host, and cold object storage</span></div>
-          <div class="stat"><strong>RL loop</strong><span>future optimizer for routing, batching, KV precision, and eviction</span></div>
+          <div class="stat"><strong>24 channels</strong><span>LPDDR6 planning point around the package edge</span></div>
+          <div class="stat"><strong>1 TB/s raw</strong><span>local DRAM target, always derated to sustained bandwidth</span></div>
+          <div class="stat"><strong>250-350 TF</strong><span>FP4 array planning envelope per RC-Token package</span></div>
+          <div class="stat"><strong>8 chips</strong><span>first board-level locality domain for scale-up studies</span></div>
         </div>
       </div>
     </div>
@@ -782,16 +863,38 @@
         <div class="section-head">
           <div>
             <p class="eyebrow">Design Center</p>
-            <h2>Agentic coding changes the bottleneck.</h2>
+            <h2>Decode is a memory and locality problem.</h2>
           </div>
-          <p>The repo treats long-lived coding sessions as the workload that should shape the silicon. The same prompts, files, instructions, and tool outputs recur, so the system makes KV reuse and low-jitter decode first-class architecture goals.</p>
+          <p>Long-lived coding sessions repeat prompts, files, instructions, and tool output. RCIF therefore treats sustained local-memory delivery and keeping each token inside its locality domain as the first constraints, then sizes compute and links around them.</p>
         </div>
         <div class="why-grid">
-          <div class="tile"><b>Large stable prefixes</b><p>System prompts, repo summaries, hot files, issue context, and tool results can stay resident as immutable prefix objects.</p></div>
-          <div class="tile"><b>Latency-sensitive decode</b><p>Agents feel slow when token generation has poor p95 or p99 behavior, even if average throughput looks healthy.</p></div>
-          <div class="tile"><b>Hardware-visible KV</b><p>KV pages get virtual addresses, tiers, format tags, refcounts, and routing metadata instead of hiding behind opaque software caches.</p></div>
-          <div class="tile"><b>Deterministic orchestration</b><p>Compiled token-step descriptors and predictable scheduling reduce jitter and make verification more reproducible.</p></div>
+          <div class="tile"><b>Buy local capacity</b><p>LPDDR6 targets active weights, KV pages, and descriptor buffers without making HBM packaging the default cost structure.</p></div>
+          <div class="tile"><b>Size compute from bytes</b><p>The FP4 array follows the sustained memory roofline. Extra matrix silicon must earn its place in the simulator.</p></div>
+          <div class="tile"><b>Keep the token local</b><p>Prefix affinity, virtual KV, SRAM staging, and page-aware DMA aim to avoid remote movement during the token step.</p></div>
+          <div class="tile"><b>Budget every collective</b><p>Peer links carry activations, metadata, KV movement, and MoE traffic only when the per-token latency budget closes.</p></div>
         </div>
+      </div>
+    </section>
+
+    <section id="roofline" class="roofline">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">First-Silicon Sizing</p>
+            <h2>Start at delivered bytes, then stop at enough compute.</h2>
+          </div>
+          <p>The baseline is a planning envelope, not a performance claim. Every step below must be calibrated with controller efficiency, refresh, ECC, traffic shape, and real collective timing.</p>
+        </div>
+        <div class="roofline-flow" aria-label="Local DRAM bandwidth to compute roofline">
+          <div class="roofline-stage"><strong>24</strong><b>LPDDR6 channels</b><p>576 data pins target a memory-rich package edge on a mature-node RC-Token die.</p></div>
+          <div class="roofline-arrow" aria-hidden="true">size</div>
+          <div class="roofline-stage"><strong>1 TB/s</strong><b>Raw local bandwidth</b><p>Top-bin planning point at 14.4 Gb/s per pin, before delivery losses.</p></div>
+          <div class="roofline-arrow" aria-hidden="true">derate</div>
+          <div class="roofline-stage"><strong>0.7-1.0</strong><b>TB/s sustained</b><p>Use workload efficiency after controller overhead, refresh, ECC, and access patterns.</p></div>
+          <div class="roofline-arrow" aria-hidden="true">roofline</div>
+          <div class="roofline-stage"><strong>250-350</strong><b>TFLOP/s FP4</b><p>Planning envelope for a bandwidth-balanced decode array with measured headroom.</p></div>
+        </div>
+        <p class="roofline-note">At batch 64, an ideal FP4 weight stream is about 256 FLOPs per byte. The corresponding 180-260 TFLOP/s useful range is a sizing clue, not a substitute for an end-to-end token-step model.</p>
       </div>
     </section>
 
@@ -800,9 +903,9 @@
         <div class="section-head">
           <div>
             <p class="eyebrow">Architecture</p>
-            <h2>RCIF splits prefill, decode, and KV locality.</h2>
+            <h2>RCIF splits prefill, decode, and locality domains.</h2>
           </div>
-          <p>The first implementation focuses on RC-Token, a decode-oriented ASIC role. Existing GPUs or a simulator can handle prefill while the custom fabric proves the value of KV-resident follow-up turns.</p>
+          <p>The first implementation focuses on RC-Token, a memory-balanced decode ASIC. Existing GPUs or a simulator can handle prefill while an 8-chip locality domain proves KV-resident follow-up turns before rack-scale expansion.</p>
         </div>
 
         <div class="system-diagram" aria-label="RCIF system architecture diagram">
@@ -814,14 +917,14 @@
           <div class="arrow-line" aria-hidden="true"><span></span><span class="arrow">route</span><span></span><span class="arrow">compile</span><span></span></div>
           <div class="diagram-row">
             <div class="module gold"><b>Context Engine Pool</b><p>GPU or future RC-Context path ingests long prompts and creates KV pages.</p></div>
-            <div class="module dark"><b>RC-Token Group</b><p>Decode ASIC packages own low-jitter token generation and hot KV access.</p></div>
-            <div class="module red"><b>Scale-Up Fabric</b><p>Collectives support tensor parallel, expert parallel, and remote KV movement.</p></div>
+            <div class="module dark"><b>8-Chip RC-Token Domain</b><p>Memory-rich decode packages own local weights, hot KV, and low-jitter token generation.</p></div>
+            <div class="module red"><b>Scale-Up Fabric</b><p>Peer links carry only model-proven tensor, expert, activation, metadata, and remote-KV traffic.</p></div>
           </div>
           <div class="arrow-line" aria-hidden="true"><span></span><span class="arrow">fill KV</span><span></span><span class="arrow">decode</span><span></span></div>
           <div class="diagram-row five">
             <div class="module green"><b>SRAM</b><p>Hot tiles, queues, scoreboards, TLB, metadata.</p></div>
-            <div class="module blue"><b>HBM</b><p>Active KV pages, weight shards, descriptor buffers.</p></div>
-            <div class="module gold"><b>Peer / CXL</b><p>Remote active KV, warm pages, sharded activations.</p></div>
+            <div class="module blue"><b>Local DRAM</b><p>24-channel LPDDR6 planning point for active KV, weight shards, and descriptor buffers.</p></div>
+            <div class="module gold"><b>Peer / CXL</b><p>Remote KV, warm pages, and sharded activations with measured link budgets.</p></div>
             <div class="module red"><b>Host Memory</b><p>Cold-but-reusable prefixes and spill state.</p></div>
             <div class="module"><b>Object Store</b><p>Persistent cold prefix objects managed by software.</p></div>
           </div>
@@ -836,14 +939,14 @@
             <p class="eyebrow">Token Step</p>
             <h2>Decode becomes a hardware-scheduled graph.</h2>
           </div>
-          <p>Firmware prepares descriptors and handles faults, but the per-token critical path is meant to stay in hardware: queue, schedule, gather KV, stream attention, run tensor work, fence collectives, complete.</p>
+          <p>Firmware prepares descriptors and handles faults, but the per-token critical path is meant to stay in hardware: queue, schedule, gather KV, stream attention, run a bandwidth-sized tensor array, fence only necessary collectives, complete.</p>
         </div>
         <div class="flow">
           <div class="stage"><b>Descriptor stream</b><p>Host submits a compiled token-step graph with request IDs, dependency masks, and operation descriptors.</p></div>
           <div class="stage"><b>Scheduler</b><p>The token scheduler issues work in deterministic order while tracking dependencies and QoS.</p></div>
-          <div class="stage"><b>KV MMU + DMA</b><p>Virtual KV pages translate through the TLB; gather/scatter engines move hot K/V tiles into SRAM.</p></div>
-          <div class="stage"><b>Attention + tensor</b><p>Streaming attention consumes paged KV, then tensor and MLP units produce the next layer output.</p></div>
-          <div class="stage"><b>Collective + complete</b><p>Scale-up links exchange partials for TP/EP layouts before the completion queue reports progress.</p></div>
+          <div class="stage"><b>KV MMU + local DMA</b><p>Virtual KV pages translate through the TLB; gather/scatter engines move local-DRAM K/V tiles into SRAM.</p></div>
+          <div class="stage"><b>Attention + tensor</b><p>Streaming attention consumes paged KV, then a sustained-bandwidth-sized tensor array produces the next layer output.</p></div>
+          <div class="stage"><b>Collective + complete</b><p>Peer links exchange only scheduled TP/EP partials; the model must keep collective time within its TPOT budget.</p></div>
         </div>
       </div>
     </section>
@@ -867,15 +970,16 @@
               <li>Scheduler counters and error statuses</li>
               <li>KV map and translate path through reusable TLB/MMU</li>
               <li>DMA copy descriptor path with gather/scatter SRAM model</li>
+              <li>LPDDR6-first local-DRAM contract in the simulator and roadmap</li>
             </ul>
           </aside>
           <div class="status-table" aria-label="Current component status">
             <div class="status-row"><div>Command Queue</div><div>Absorbs bursts and decouples host timing from scheduler timing.</div><div><span class="tag done">built</span></div></div>
             <div class="status-row"><div>Scheduler Stub</div><div>Handles NOP, ECHO, counters, KV operations, DMA copy, and structured failures.</div><div><span class="tag done">built</span></div></div>
             <div class="status-row"><div>KV MMU / TLB</div><div>Maps virtual KV pages to physical pages, tiers, and format tags.</div><div><span class="tag done">built</span></div></div>
-            <div class="status-row"><div>DMA Path</div><div>Runs descriptor validation and a deterministic page-model gather/scatter prototype.</div><div><span class="tag done">prototype</span></div></div>
+            <div class="status-row"><div>DMA Path</div><div>Runs descriptor validation and a deterministic page-model gather/scatter prototype; a real local-DRAM adapter is next.</div><div><span class="tag done">prototype</span></div></div>
             <div class="status-row"><div>Paged Attention</div><div>Next compute-facing slice: compare RTL against golden attention with randomized page layouts.</div><div><span class="tag next">next</span></div></div>
-            <div class="status-row"><div>Tensor / Collective</div><div>Planned engines for quantized matmul, MLP, tensor parallel, and expert parallel traffic.</div><div><span class="tag plan">planned</span></div></div>
+            <div class="status-row"><div>Tensor / Collective</div><div>Planned bandwidth-balanced matrix and topology-aware collective engines, gated by end-to-end TPOT evidence.</div><div><span class="tag plan">planned</span></div></div>
           </div>
         </div>
       </div>
@@ -898,7 +1002,7 @@
             <ul class="bullets">
               <li>32K to 1M token prefix traces</li>
               <li>500B dense and 1T-5T MoE sizing</li>
-              <li>TTFT, TPOT, hit-rate, and bandwidth targets</li>
+              <li>TTFT, TPOT, hit-rate, sustained local DRAM, and per-neighbor fabric targets</li>
             </ul>
           </div>
           <div class="road-card">
@@ -924,11 +1028,11 @@
           <div class="road-card">
             <span class="kicker">Phase 6+</span>
             <h3>Scale-out system</h3>
-            <p>Move from one token engine to topology-aware groups with collective hardware and runtime partitioning across dense and MoE models.</p>
+            <p>Move from one token engine to locality-aware groups only after bytes-per-token and collective-latency models close for each dense or MoE partition.</p>
             <ul class="bullets">
-              <li>AllReduce, AllGather, ReduceScatter, AllToAll</li>
+              <li>AllReduce, AllGather, ReduceScatter, and AllToAll</li>
               <li>Tensor, expert, and limited pipeline parallelism</li>
-              <li>Prefix locality domains across a rack</li>
+              <li>8-chip locality domains and hot-layer replication</li>
             </ul>
           </div>
         </div>
@@ -942,18 +1046,18 @@
             <p class="eyebrow">RL-Guided Optimization</p>
             <h2>Future tuning turns hardware counters into policy.</h2>
           </div>
-          <p>The long-term opportunity is to optimize the system as an adaptive inference environment. Simulator traces and hardware counters can train policies that choose routing, batching, KV tiering, precision, and eviction under latency and power constraints.</p>
+          <p>The long-term opportunity is to optimize the system as an adaptive inference environment. Simulator traces and hardware counters can train policies that choose routing, batching, KV tiering, precision, eviction, and locality placement under latency, memory, and peer-link constraints.</p>
         </div>
         <div class="loop-diagram">
           <div class="loop-step">
             <span class="kicker">Observe</span>
             <h3>Measure the workload</h3>
-            <p>Collect token traces, prefix hashes, KV hit/miss paths, DMA stalls, tail latency, power, and quality metrics from simulation and RTL counters.</p>
+            <p>Collect token traces, prefix hashes, KV hit/miss paths, local-DRAM efficiency, peer-link utilization, tail latency, power, and quality metrics.</p>
           </div>
           <div class="loop-step">
             <span class="kicker">Act</span>
             <h3>Choose system knobs</h3>
-            <p>Adjust routing affinity, page size, continuous batching windows, speculative decode, KV precision by tier, and eviction weights.</p>
+            <p>Adjust routing affinity, page size, channel allocation, batching windows, speculative decode, KV precision by tier, and eviction weights.</p>
           </div>
           <div class="loop-step">
             <span class="kicker">Reward</span>
@@ -969,7 +1073,8 @@
         <div class="formula" role="img" aria-label="Autotuning objective">
 maximize accepted_tokens_per_second
 subject to TTFT_p95 <= target, TPOT_p95 <= target,
-error_rate <= target, power <= cap, KV_hit_rate >= target
+error_rate <= target, power <= cap, KV_hit_rate >= target,
+collective_share_of_TPOT <= target
         </div>
       </div>
     </section>

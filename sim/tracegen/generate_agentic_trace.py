@@ -25,8 +25,8 @@ def build_trace(requests: int, prefix_tokens: int, reuse_ratio: float) -> dict:
             "prefill_ops_per_token": 1000000000000,
         },
         "hardware": {
-            "local_hbm_bandwidth_bytes_s": 9440000000000,
-            "remote_kv_bandwidth_bytes_s": 1000000000000,
+            "local_dram_bandwidth_bytes_s": 800000000000,
+            "remote_kv_bandwidth_bytes_s": 224000000000,
             "prefill_ops_s": 5000000000000000,
             "decode_ops_s": 1000000000000000,
             "collective_latency_s": 0.001,
@@ -64,4 +64,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

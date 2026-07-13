@@ -55,7 +55,7 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class HardwareConfig:
-    local_hbm_bandwidth_bytes_s: float
+    local_dram_bandwidth_bytes_s: float
     remote_kv_bandwidth_bytes_s: float
     prefill_ops_s: float
     decode_ops_s: float
@@ -69,8 +69,14 @@ class HardwareConfig:
         remote_hit = float(data["kv_remote_hit_rate"])
         if local_hit + remote_hit > 1.0:
             raise ValueError("kv_local_hit_rate + kv_remote_hit_rate must be <= 1")
+        local_dram_bandwidth = data.get(
+            "local_dram_bandwidth_bytes_s",
+            data.get("local_hbm_bandwidth_bytes_s"),
+        )
+        if local_dram_bandwidth is None:
+            raise ValueError("hardware requires local_dram_bandwidth_bytes_s")
         return cls(
-            local_hbm_bandwidth_bytes_s=float(data["local_hbm_bandwidth_bytes_s"]),
+            local_dram_bandwidth_bytes_s=float(local_dram_bandwidth),
             remote_kv_bandwidth_bytes_s=float(data["remote_kv_bandwidth_bytes_s"]),
             prefill_ops_s=float(data["prefill_ops_s"]),
             decode_ops_s=float(data["decode_ops_s"]),
@@ -174,7 +180,7 @@ def simulate_request(model: ModelConfig, hardware: HardwareConfig, request: Requ
     prefill_compute_s = (
         request.new_prefill_tokens * model.prefill_ops_per_token / hardware.prefill_ops_s
     )
-    prefill_mem_s = kv_write_bytes / hardware.local_hbm_bandwidth_bytes_s
+    prefill_mem_s = kv_write_bytes / hardware.local_dram_bandwidth_bytes_s
     prefill_s = max(prefill_compute_s, prefill_mem_s)
 
     total_kv_read = 0.0
@@ -194,11 +200,11 @@ def simulate_request(model: ModelConfig, hardware: HardwareConfig, request: Requ
 
         # Cold KV is modeled as remote traffic plus a 4x penalty for promotion.
         kv_time_s = (
-            local_kv / hardware.local_hbm_bandwidth_bytes_s
+            local_kv / hardware.local_dram_bandwidth_bytes_s
             + remote_kv / hardware.remote_kv_bandwidth_bytes_s
             + cold_kv * 4.0 / hardware.remote_kv_bandwidth_bytes_s
         )
-        weight_time_s = model.weight_bytes_per_token / hardware.local_hbm_bandwidth_bytes_s
+        weight_time_s = model.weight_bytes_per_token / hardware.local_dram_bandwidth_bytes_s
         compute_time_s = model.decode_ops_per_token / hardware.decode_ops_s
         token_s = max(kv_time_s, weight_time_s, compute_time_s) + hardware.collective_latency_s
 
