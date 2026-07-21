@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RCIF Architecture Comparison | Groq, Etched, Cerebras</title>
+  <meta name="description" content="A sourced architecture comparison of RecursiveCompute RCIF with Groq LPU, Etched frontier inference hardware, and Cerebras WSE-3.">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #596675;
+      --paper: #f4f1e9;
+      --panel: #ffffff;
+      --line: #d7d2c5;
+      --dark: #1e2933;
+      --green: #0f8b6f;
+      --blue: #2867b2;
+      --red: #bd4b4d;
+      --gold: #ad721c;
+      --soft-green: #e1f3ec;
+      --soft-blue: #e6eef9;
+      --soft-red: #f9e7e5;
+      --soft-gold: #f7ecd2;
+      --shadow: 0 18px 42px rgba(30, 41, 51, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    a { color: inherit; }
+    .shell { width: min(1220px, calc(100% - 32px)); margin: 0 auto; }
+    .eyebrow {
+      margin: 0 0 12px;
+      color: #63d5ba;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .hero {
+      padding: 28px 0 64px;
+      color: #f8fbfb;
+      background:
+        radial-gradient(circle at 82% 16%, rgba(40, 103, 178, 0.42), transparent 30%),
+        linear-gradient(120deg, #17212b, #263640 64%, #17212b);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 64px;
+      font-size: 14px;
+    }
+    .brand { display: flex; gap: 10px; align-items: center; font-weight: 800; }
+    .mark { width: 28px; height: 28px; border: 2px solid #63d5ba; transform: rotate(45deg); position: relative; }
+    .mark::after { content: ""; position: absolute; inset: 6px; border: 2px solid #f1bd4b; }
+    .nav-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .nav-links a {
+      padding: 7px 10px;
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.07);
+      text-decoration: none;
+    }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.48fr); gap: 46px; align-items: end; }
+    h1 { margin: 0; max-width: 900px; font-size: clamp(46px, 7vw, 94px); line-height: 0.94; letter-spacing: -0.04em; }
+    .hero-copy { max-width: 780px; margin: 24px 0 0; color: #d8e3e3; font-size: clamp(18px, 2vw, 22px); }
+    .verdict {
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-top: 7px solid #63d5ba;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.08);
+    }
+    .verdict b { display: block; margin-bottom: 10px; font-size: 20px; }
+    .verdict p { margin: 0; color: #d8e3e3; }
+    section { padding: 72px 0; }
+    .section-head { display: grid; grid-template-columns: minmax(0, .58fr) minmax(280px, .42fr); gap: 34px; align-items: end; margin-bottom: 30px; }
+    .section-head .eyebrow { color: var(--green); }
+    h2 { margin: 0; font-size: clamp(32px, 4vw, 56px); line-height: 1; letter-spacing: -0.03em; }
+    .section-head > p { margin: 0; color: var(--muted); font-size: 17px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+    .legend span, .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+    .dot.groq { background: var(--blue); }
+    .dot.etched { background: var(--red); }
+    .dot.cerebras { background: var(--gold); }
+    .matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
+    .matrix { min-width: 980px; }
+    .matrix-row { display: grid; grid-template-columns: 165px repeat(4, minmax(200px, 1fr)); border-top: 1px solid var(--line); }
+    .matrix-row:first-child { border-top: 0; }
+    .matrix-row > div { min-height: 116px; padding: 17px; border-left: 1px solid var(--line); }
+    .matrix-row > div:first-child { border-left: 0; background: #eeeade; font-weight: 800; }
+    .matrix-row.head > div { min-height: auto; color: #fff; background: var(--dark); font-weight: 800; }
+    .matrix-row.head > div:nth-child(2) { background: var(--green); }
+    .matrix-row.head > div:nth-child(3) { background: var(--blue); }
+    .matrix-row.head > div:nth-child(4) { background: var(--red); }
+    .matrix-row.head > div:nth-child(5) { background: var(--gold); }
+    .matrix p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+    .matrix-row.head p { color: rgba(255,255,255,0.82); }
+    .positioning { color: #f7fbfb; background: var(--dark); }
+    .positioning .section-head .eyebrow { color: #63d5ba; }
+    .positioning .section-head > p { color: #c8d3d4; }
+    .spectrum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .position-card { min-height: 260px; padding: 21px; border: 1px solid rgba(255,255,255,0.18); border-top: 7px solid #63d5ba; border-radius: 8px; background: rgba(255,255,255,0.07); }
+    .position-card:nth-child(2) { border-top-color: #75a8e5; }
+    .position-card:nth-child(3) { border-top-color: #e98687; }
+    .position-card:nth-child(4) { border-top-color: #e9b64c; }
+    .position-card h3 { margin: 0 0 8px; font-size: 24px; }
+    .position-card p { margin: 0; color: #d3dddd; }
+    .position-card ul { margin: 16px 0 0; padding-left: 18px; color: #d3dddd; }
+    .position-card li + li { margin-top: 7px; }
+    .differentiators { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .trade-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .trade {
+      min-height: 230px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 12px 30px rgba(30,41,51,.06);
+    }
+    .trade:nth-child(1) { background: var(--soft-green); }
+    .trade:nth-child(2) { background: var(--soft-gold); }
+    .trade:nth-child(3) { background: var(--soft-red); }
+    .trade h3 { margin: 0 0 11px; font-size: 23px; line-height: 1.1; }
+    .trade p { margin: 0; color: var(--muted); }
+    .trade ul { margin: 15px 0 0; padding-left: 18px; color: var(--muted); }
+    .trade li + li { margin-top: 7px; }
+    .evidence-grid { display: grid; grid-template-columns: minmax(0, .42fr) minmax(0, .58fr); gap: 16px; }
+    .status {
+      padding: 24px;
+      color: #fff;
+      background: var(--dark);
+      border-radius: 8px;
+    }
+    .status h3 { margin: 0 0 10px; font-size: 27px; }
+    .status p { margin: 0 0 18px; color: #d6e0e0; }
+    .status ul { margin: 0; padding-left: 18px; color: #edf3f2; }
+    .status li + li { margin-top: 9px; }
+    .ladder { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .step { display: grid; grid-template-columns: 42px 165px 1fr; border-top: 1px solid var(--line); }
+    .step:first-child { border-top: 0; }
+    .step > div { padding: 15px; }
+    .step .num { display: grid; place-items: center; color: #fff; background: var(--green); font-weight: 800; }
+    .step b { display: block; }
+    .step p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    .sources { background: #fff; }
+    .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .source {
+      display: block;
+      min-height: 114px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      text-decoration: none;
+    }
+    .source:hover, .source:focus-visible { outline: 3px solid rgba(40,103,178,.18); border-color: var(--blue); }
+    .source b { display: block; margin-bottom: 5px; }
+    .source span { color: var(--muted); font-size: 14px; }
+    .note { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
+    footer { padding: 28px 0 34px; color: #dce4e3; background: var(--dark); }
+    footer .shell { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    footer a { color: #fff; font-weight: 700; }
+    @media (max-width: 960px) {
+      .hero-grid, .section-head, .evidence-grid { grid-template-columns: 1fr; }
+      .spectrum, .trade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 22px, 1220px); }
+      .hero { padding-top: 20px; }
+      .nav { align-items: flex-start; flex-direction: column; margin-bottom: 44px; }
+      .nav-links { justify-content: flex-start; }
+      section { padding: 54px 0; }
+      .spectrum, .trade-grid, .source-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 38px 1fr; }
+      .step > div:last-child { grid-column: 2; padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell">
+      <nav class="nav" aria-label="Comparison navigation">
+        <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span><span>RecursiveCompute</span></a>
+        <div class="nav-links">
+          <a href="#matrix">Matrix</a>
+          <a href="#positioning">Positioning</a>
+          <a href="#tradeoffs">Trade-offs</a>
+          <a href="#evidence">Evidence</a>
+          <a href="#sources">Sources</a>
+        </div>
+      </nav>
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Architecture comparison · public information through July 2026</p>
+          <h1>Four answers to the inference memory wall.</h1>
+          <p class="hero-copy">RCIF is closest to Groq in its pursuit of deterministic token execution, closest to Etched in its rack-level decode focus, and closest to Cerebras in treating memory locality as architecture—not an afterthought. Its distinct bet is cheap LPDDR6 capacity plus virtualized, reusable KV.</p>
+        </div>
+        <aside class="verdict">
+          <b>The short version</b>
+          <p>Groq puts weights in distributed SRAM and schedules every cycle. Etched co-designs low-voltage math with a shared HBM/SRAM memory domain. Cerebras turns a wafer into one enormous SRAM-rich dataflow processor. RCIF keeps weights and active KV in lower-cost local DRAM, then makes prefix locality and KV paging first-class.</p>
+        </aside>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="matrix">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Detailed matrix</p><h2>Same bottleneck, different boundary.</h2></div>
+          <p>The useful comparison is architectural, not a peak-TOPS contest. RCIF figures are design targets; vendor figures and descriptions are public disclosures, not normalized third-party benchmarks.</p>
+        </div>
+        <div class="legend" aria-label="Architecture legend">
+          <span><i class="dot"></i>RCIF</span><span><i class="dot groq"></i>Groq</span><span><i class="dot etched"></i>Etched</span><span><i class="dot cerebras"></i>Cerebras</span>
+        </div>
+        <div class="matrix-wrap">
+          <div class="matrix" role="table" aria-label="RCIF, Groq, Etched, and Cerebras architecture comparison">
+            <div class="matrix-row head" role="row">
+              <div role="columnheader">Dimension</div>
+              <div role="columnheader">RCIF / RC-Token<p>Open roadmap + prototype RTL</p></div>
+              <div role="columnheader">Groq LPU<p>Production inference platform</p></div>
+              <div role="columnheader">Etched platform<p>A0 silicon under validation</p></div>
+              <div role="columnheader">Cerebras WSE-3<p>Production wafer-scale system</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Design center</div>
+              <div><b>Agentic decode</b><p>Long-lived sessions, repeated prefixes, low TPOT jitter, and 500B–5T sharded models.</p></div>
+              <div><b>Real-time inference</b><p>Predictable low latency via a compiler-controlled programmable assembly line.</p></div>
+              <div><b>Frontier inference clusters</b><p>High-throughput prefill and interactive decode, including large sparse MoE models.</p></div>
+              <div><b>Training + inference</b><p>Wafer-scale dataflow, with inference increasingly split into dedicated decode deployments.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Execution</div>
+              <div><b>Hardware token graph</b><p>Target scheduler issues DMA, paged attention, tensor, and collectives deterministically; only the control/memory slice exists today.</p></div>
+              <div><b>Static schedule</b><p>Compiler schedules compute, SRAM movement, and inter-chip traffic to the cycle; architected as one logical core.</p></div>
+              <div><b>Cluster co-design</b><p>Splittable math arrays, low-voltage operation, and novel tiling/scheduling target high sustained FLOP utilization.</p></div>
+              <div><b>Fine-grained dataflow</b><p>Hundreds of thousands of PEs with local SRAM communicate over an on-wafer mesh; data arrival activates work.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Primary memory bet</div>
+              <div><b>LPDDR6 + SRAM cache</b><p>24-channel, ~1 TB/s raw local-DRAM planning point; 512 MB SRAM baseline for hot tiles and metadata.</p></div>
+              <div><b>SRAM as primary storage</b><p>Hundreds of MB of on-chip SRAM hold weights rather than merely cache them; capacity scales across LPUs.</p></div>
+              <div><b>HBM/SRAM hybrid</b><p>Cluster Scale Memory pools capacity and lowers mem-to-mem latency across the scale-up domain.</p></div>
+              <div><b>44 GB on-wafer SRAM</b><p>WSE-3 discloses 21 PB/s aggregate memory bandwidth; models larger than a wafer span systems or use weight-streaming infrastructure.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">KV-cache stance</div>
+              <div><b>Explicit virtual memory object</b><p>Page IDs, tiers, format tags, prefix hashes, sharing, refcounts, faults, and hot/warm/cold placement are architectural state.</p></div>
+              <div><b>Fits the scheduled dataflow</b><p>Fast SRAM and deterministic movement benefit KV access, but public architecture messaging centers on weights and scheduled tensors.</p></div>
+              <div><b>Shared low-latency memory</b><p>The HBM/SRAM scale-up pool is positioned to improve decode interactivity and cross-chip memory access.</p></div>
+              <div><b>High-bandwidth local state</b><p>On-wafer SRAM removes the conventional off-chip path for resident state; newer deployments transfer KV between disaggregated prefill and decode systems.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Scale boundary</div>
+              <div><b>8-chip locality domain</b><p>Prefix-aware routing tries to keep a token inside a board domain; collectives must fit an explicit TPOT budget.</p></div>
+              <div><b>Multi-chip assembly line</b><p>Direct C2C links and statically scheduled traffic extend deterministic execution beyond one chip.</p></div>
+              <div><b>Rack-scale shared domain</b><p>A proprietary low-latency, high-bandwidth interconnect joins memory and compute across chips.</p></div>
+              <div><b>Wafer first, cluster second</b><p>Most communication stays on-wafer; SwarmX/MemoryX and system links extend the machine for very large models.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Specialization</div>
+              <div><b>Decode-specific, model-flexible target</b><p>Custom attention/tensor engines plus RISC-V control; planned FP4/FP8/INT paths and dense/MoE partitioning.</p></div>
+              <div><b>Programmable ML inference</b><p>Generic compiler maps models onto a fixed tensor-streaming machine; less narrow than transformer-only logic.</p></div>
+              <div><b>Inference-specific</b><p>Current public platform targets frontier prefill/decode and sparse MoE; architectural detail is more limited than Groq or Cerebras disclosures.</p></div>
+              <div><b>Broad AI/HPC dataflow</b><p>AI-optimized cores support training, inference, sparsity, and custom CSL kernels—not only transformers.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Economic thesis</div>
+              <div><b>Capacity per dollar</b><p>Avoid HBM/2.5D packaging in the baseline; buy enough compute to saturate sustained local DRAM.</p></div>
+              <div><b>Latency per token</b><p>Spend silicon on SRAM, deterministic datapaths, and direct links; distribute model storage over chips.</p></div>
+              <div><b>FLOPs per watt at rack scale</b><p>Lower math voltage and reduce the HBM-versus-SRAM compromise through cluster co-design.</p></div>
+              <div><b>Communication avoided</b><p>Pay the wafer-scale manufacturing and system cost to collapse a cluster’s fine-grained communication onto silicon.</p></div>
+            </div>
+            <div class="matrix-row" role="row">
+              <div role="rowheader">Main architectural risk</div>
+              <div><b>LPDDR delivery + unfinished datapath</b><p>Bank efficiency, long-context KV traffic, tensor throughput, and collectives are not yet proven end to end.</p></div>
+              <div><b>Distributed SRAM capacity</b><p>Large models require many chips, making compiler mapping and scheduled inter-chip movement central.</p></div>
+              <div><b>Disclosure + product validation</b><p>Public detail and independent evidence lag the ambition of the A0 platform and rack claims.</p></div>
+              <div><b>System scale and power</b><p>Wafer-scale hardware is physically and operationally substantial, and models beyond local SRAM still require multi-system orchestration.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="positioning" class="positioning">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Strategic positioning</p><h2>RCIF is not a smaller copy of any one competitor.</h2></div>
+          <p>It selects one lesson from each architecture, then changes the memory economics and the software-visible object being optimized.</p>
+        </div>
+        <div class="spectrum">
+          <article class="position-card"><h3>RCIF</h3><p>Optimize the token’s locality over the life of an agent session.</p><ul><li>LPDDR6 capacity first</li><li>Virtual, tiered, shareable KV</li><li>Hardware decode graph</li><li>Prefix-aware routing</li></ul></article>
+          <article class="position-card"><h3>Groq</h3><p>Optimize a compiled tensor stream so every cycle and packet is known.</p><ul><li>SRAM primary storage</li><li>Single logical core</li><li>Static compute + network</li><li>Low batch latency</li></ul></article>
+          <article class="position-card"><h3>Etched</h3><p>Optimize an entire inference rack’s power, math, and shared memory together.</p><ul><li>Low-voltage math</li><li>HBM/SRAM hybrid</li><li>Scale-up memory pool</li><li>Prefill + decode</li></ul></article>
+          <article class="position-card"><h3>Cerebras</h3><p>Optimize locality by replacing many packaged chips with one wafer-scale fabric.</p><ul><li>44 GB on-chip SRAM</li><li>900K dataflow cores</li><li>On-wafer mesh</li><li>Training + inference</li></ul></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="tradeoffs" class="differentiators">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">What the comparison means</p><h2>RCIF’s opportunity is also its proof burden.</h2></div>
+          <p>The architecture is credible only if cheap memory capacity survives real access efficiency, and if session-level KV reuse offsets the latency advantage of SRAM-heavy competitors.</p>
+        </div>
+        <div class="trade-grid">
+          <article class="trade"><h3>Where RCIF can differentiate</h3><p>Neither raw SRAM bandwidth nor peak compute is the product claim.</p><ul><li>More local weight and KV capacity per package dollar</li><li>Prefix reuse as a routing and hardware-memory primitive</li><li>Warm/cold KV tiers for long-lived agent sessions</li><li>Compute sized from measured sustained bytes</li></ul></article>
+          <article class="trade"><h3>Where RCIF trails today</h3><p>The public competitors have silicon or systems; RCIF has a roadmap and an early executable slice.</p><ul><li>No paged-attention or tensor datapath yet</li><li>No physical LPDDR6 controller/PHY proof</li><li>No measured token-level performance or power</li><li>No demonstrated multi-chip collective engine</li></ul></article>
+          <article class="trade"><h3>The decisive experiment</h3><p>Show that a repeated-prefix coding workload stays local and meets tail latency at lower system cost.</p><ul><li>Measure sustained LPDDR efficiency, not raw pins</li><li>Report KV bytes and tier hits per output token</li><li>Cap collective share of TPOT</li><li>Compare p95/p99 TPOT at equal model, quality, and batch</li></ul></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Evidence boundary</p><h2>Target architecture is not current RTL.</h2></div>
+          <p>The repo currently proves descriptor flow and early KV/DMA semantics. The competitive thesis remains a hypothesis until the decode datapath and system model close together.</p>
+        </div>
+        <div class="evidence-grid">
+          <aside class="status"><h3>Implemented now</h3><p>A bounded, deterministic control-and-memory prototype:</p><ul><li>Command/completion queueing and backpressure</li><li>Scheduler opcodes, counters, and error handling</li><li>KV map/translate with a reusable TLB/MMU</li><li>DMA descriptor validation</li><li>Page-backed gather/scatter SRAM model with checksum completion</li><li>Python and Modal-backed Verilator regression paths</li></ul></aside>
+          <div class="ladder" aria-label="RCIF evidence ladder">
+            <div class="step"><div class="num">1</div><div><b>Now: semantics</b></div><div><p>Prove commands, page translation, faults, and deterministic memory-movement behavior.</p></div></div>
+            <div class="step"><div class="num">2</div><div><b>Next: paged attention</b></div><div><p>Stream non-contiguous KV pages through online softmax and match randomized golden-model layouts.</p></div></div>
+            <div class="step"><div class="num">3</div><div><b>Then: roofline</b></div><div><p>Add quantized tensor compute and prove delivered LPDDR bytes, array utilization, and overlap per token.</p></div></div>
+            <div class="step"><div class="num">4</div><div><b>Then: locality domain</b></div><div><p>Measure 8-chip TP/EP traffic, remote KV, and collective share of p95 TPOT.</p></div></div>
+            <div class="step"><div class="num">5</div><div><b>Competitive proof</b></div><div><p>Publish normalized TTFT/TPOT, quality, power, cost, and prefix-hit results against real systems.</p></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sources" class="sources">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Primary sources</p><h2>Architecture claims, linked.</h2></div>
+          <p>Vendor sources describe their own products and may contain marketing claims. They are used here for architectural disclosure, not as independently verified comparative performance.</p>
+        </div>
+        <div class="source-grid">
+          <a class="source" href="https://github.com/suryavanshi/RecursiveCompute/blob/main/architecture.md"><b>RCIF architecture</b><span>System view, LPDDR6/SRAM targets, token dataflow, KV memory, and current implementation boundary.</span></a>
+          <a class="source" href="agentic_llm_inference_asic_plan.md"><b>RCIF ASIC plan</b><span>Product thesis, first-silicon targets, roadmap, verification, and rack-scale partitioning.</span></a>
+          <a class="source" href="https://groq.com/lpu-architecture"><b>Groq LPU architecture</b><span>Single-core execution, on-chip SRAM, compiler control, determinism, and direct chip links.</span></a>
+          <a class="source" href="https://groq.com/wp-content/uploads/2024/02/GroqISCAPaper2022_ASoftwareDefinedTensorStreamingMultiprocessorForLargeScaleMachineLearning-1.pdf"><b>Groq ISCA tensor-streaming paper</b><span>Static scheduling, exposed architectural state, deterministic C2C flow control, and system topology.</span></a>
+          <a class="source" href="https://www.etched.com/"><b>Etched platform disclosure</b><span>A0 status, Low Voltage Inference, splittable arrays, Cluster Scale Memory, and HBM/SRAM hybrid design.</span></a>
+          <a class="source" href="https://www.cerebras.ai/chip"><b>Cerebras WSE-3 product architecture</b><span>Wafer-scale size, core count, on-chip memory, compute, and defect-tolerant routing.</span></a>
+          <a class="source" href="https://www.cerebras.ai/blog/disaggregated-inference"><b>Cerebras disaggregated inference</b><span>WSE-3 decode role, KV transfer from prefill, 44 GB SRAM, and 21 PB/s disclosed bandwidth.</span></a>
+          <a class="source" href="https://www.cerebras.ai/blog/supercharge-your-hpc-research-with-the-cerebras-sdk"><b>Cerebras dataflow programming model</b><span>900,000 processing elements, local execution, and computation activated by data arrival.</span></a>
+        </div>
+        <p class="note">Snapshot date: July 13, 2026. RCIF numerical values are planning targets, not measured silicon specifications. Etched’s current public site emphasizes a broader frontier-inference platform; this page intentionally avoids repeating older Sohu benchmark claims that are not needed for the architectural comparison.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell"><span>RecursiveCompute architecture comparison</span><span><a href="index.html">Back to the main infographic</a></span></div>
+  </footer>
+</body>
+</html>

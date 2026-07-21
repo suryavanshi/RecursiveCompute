@@ -701,7 +701,7 @@
 
     .link-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 14px;
     }
 
@@ -829,6 +829,7 @@
         <div class="brand"><span class="mark" aria-hidden="true"></span><span>RecursiveCompute</span></div>
         <div class="nav-links">
           <a href="#architecture">Architecture</a>
+          <a href="architecture-comparison.html">Compare</a>
           <a href="#roofline">Memory Roofline</a>
           <a href="#decode">Decode Flow</a>
           <a href="#roadmap">Roadmap</a>
@@ -1089,6 +1090,7 @@ collective_share_of_TPOT <= target
           <p>These project files provide the technical plan, descriptor contract, verification flow, and workload targets that this page summarizes.</p>
         </div>
         <div class="link-grid">
+          <a class="doc-link" href="architecture-comparison.html"><b>Architecture Comparison</b><span>RCIF versus Groq, Etched, and Cerebras across memory, execution, topology, specialization, and maturity.</span></a>
           <a class="doc-link" href="agentic_llm_inference_asic_plan.md"><b>ASIC Plan</b><span>Hardware and verification roadmap for 500B to 5T agentic inference.</span></a>
           <a class="doc-link" href="specs/descriptor_format.md"><b>Descriptor Format</b><span>Command opcodes, descriptor fields, KV page layout, and DMA payload layout.</span></a>
           <a class="doc-link" href="specs/workload_targets.md"><b>Workload Targets</b><span>Agentic coding traces, concurrency, context length, and measurement goals.</span></a>
