@@ -22,10 +22,11 @@ module rcif_scheduler_stub #(
 );
   import rcif_desc_pkg::*;
 
-  typedef enum logic [1:0] {
+  typedef enum logic [2:0] {
     IDLE,
     WAIT_KV,
     WAIT_DMA,
+    WAIT_ATTN,
     RESPOND
   } state_t;
 
@@ -36,6 +37,7 @@ module rcif_scheduler_stub #(
   logic [DATA_W-1:0] accepted_count_q;
   logic [DATA_W-1:0] completed_count_q;
   logic [DATA_W-1:0] error_count_q;
+  logic [DATA_W-1:0] fault_overflow_count_q;
   logic kv_req_valid;
   logic kv_req_ready;
   logic [15:0] kv_req_opcode;
@@ -52,11 +54,43 @@ module rcif_scheduler_stub #(
   logic dma_rsp_ready;
   logic [STATUS_W-1:0] dma_rsp_status;
   logic [DATA_W-1:0] dma_rsp_result;
+  logic fault_push_valid;
+  logic fault_push_ready;
+  logic fault_overflow;
+  logic fault_pop_valid;
+  logic fault_pop_ready;
+  logic [REQ_ID_W-1:0] fault_request_id;
+  logic [RCIF_KV_VIRT_PAGE_W-1:0] fault_virt_page;
+  logic [15:0] fault_cause;
+  logic attn_req_valid;
+  logic attn_req_ready;
+  logic attn_rsp_valid;
+  logic attn_rsp_ready;
+  logic signed [31:0] attn_rsp_dot;
 
   wire accept_cmd = cmd_valid_i && cmd_ready_o;
   wire complete_cpl = (state_q == RESPOND) && cpl_ready_i;
   wire cmd_is_kv = (cmd_opcode_i == RCIF_OPCODE_KV_MAP) || (cmd_opcode_i == RCIF_OPCODE_KV_TRANSLATE);
-  wire cmd_is_dma = (cmd_opcode_i == RCIF_OPCODE_DMA_COPY);
+  wire cmd_is_dma = (cmd_opcode_i == RCIF_OPCODE_DMA_COPY) ||
+                    (cmd_opcode_i == RCIF_OPCODE_DMA_INDEX_WRITE) ||
+                    (cmd_opcode_i == RCIF_OPCODE_DMA_GATHER) ||
+                    (cmd_opcode_i == RCIF_OPCODE_DMA_ECC_INJECT);
+  wire cmd_is_attn = (cmd_opcode_i == RCIF_OPCODE_ATTN_QK_DOT);
+
+  function automatic logic [DATA_W-1:0] pack_fault(
+    input logic [REQ_ID_W-1:0] request_id,
+    input logic [RCIF_KV_VIRT_PAGE_W-1:0] virt_page,
+    input logic [15:0] cause
+  );
+    logic [DATA_W-1:0] fault_bits;
+    begin
+      fault_bits = '0;
+      fault_bits[15:0] = virt_page;
+      fault_bits[47:16] = 32'(request_id);
+      fault_bits[63:48] = cause;
+      pack_fault = fault_bits;
+    end
+  endfunction
 
   always_comb begin
     state_d = state_q;
@@ -66,7 +100,8 @@ module rcif_scheduler_stub #(
 
     cmd_ready_o = (state_q == IDLE) &&
                   (!cmd_is_kv || kv_req_ready) &&
-                  (!cmd_is_dma || dma_req_ready);
+                  (!cmd_is_dma || dma_req_ready) &&
+                  (!cmd_is_attn || attn_req_ready);
     cpl_valid_o = (state_q == RESPOND);
     kv_req_valid = accept_cmd && cmd_is_kv && (cmd_flags_i == 16'h0);
     kv_req_opcode = cmd_opcode_i;
@@ -76,6 +111,14 @@ module rcif_scheduler_stub #(
     dma_req_opcode = cmd_opcode_i;
     dma_req_payload = cmd_payload_i;
     dma_rsp_ready = (state_q == WAIT_DMA);
+    attn_req_valid = accept_cmd && cmd_is_attn && (cmd_flags_i == 16'h0);
+    attn_rsp_ready = (state_q == WAIT_ATTN);
+    fault_push_valid = fault_push_ready && (state_q == WAIT_KV) &&
+                       kv_rsp_valid && kv_rsp_ready &&
+                       (kv_rsp_status == RCIF_STATUS_KV_MISS[STATUS_W-1:0]);
+    fault_pop_ready = accept_cmd &&
+                      (cmd_opcode_i == RCIF_OPCODE_KV_GET_FAULT) &&
+                      (cmd_flags_i == 16'h0) && fault_pop_valid;
 
     if (accept_cmd) begin
       request_id_d = cmd_request_id_i;
@@ -102,6 +145,10 @@ module rcif_scheduler_stub #(
               status_d = RCIF_STATUS_OK[STATUS_W-1:0];
               result_d = error_count_q;
             end
+            RCIF_COUNTER_FAULT_OVERFLOWS: begin
+              status_d = RCIF_STATUS_OK[STATUS_W-1:0];
+              result_d = fault_overflow_count_q;
+            end
             default: begin
               status_d = RCIF_STATUS_UNSUPPORTED_COUNTER[STATUS_W-1:0];
               result_d = {{(DATA_W-8){1'b0}}, cmd_payload_i[7:0]};
@@ -110,9 +157,22 @@ module rcif_scheduler_stub #(
         end
         RCIF_OPCODE_KV_MAP,
         RCIF_OPCODE_KV_TRANSLATE,
-        RCIF_OPCODE_DMA_COPY: begin
+        RCIF_OPCODE_DMA_COPY,
+        RCIF_OPCODE_DMA_INDEX_WRITE,
+        RCIF_OPCODE_DMA_GATHER,
+        RCIF_OPCODE_DMA_ECC_INJECT,
+        RCIF_OPCODE_ATTN_QK_DOT: begin
           status_d = RCIF_STATUS_OK[STATUS_W-1:0];
           result_d = '0;
+        end
+        RCIF_OPCODE_KV_GET_FAULT: begin
+          if (fault_pop_valid) begin
+            status_d = RCIF_STATUS_OK[STATUS_W-1:0];
+            result_d = pack_fault(fault_request_id, fault_virt_page, fault_cause);
+          end else begin
+            status_d = RCIF_STATUS_FAULT_QUEUE_EMPTY[STATUS_W-1:0];
+            result_d = '0;
+          end
         end
         default: begin
           status_d = RCIF_STATUS_UNSUPPORTED_OPCODE[STATUS_W-1:0];
@@ -126,6 +186,8 @@ module rcif_scheduler_stub #(
         state_d = WAIT_KV;
       end else if (cmd_is_dma && cmd_flags_i == 16'h0) begin
         state_d = WAIT_DMA;
+      end else if (cmd_is_attn && cmd_flags_i == 16'h0) begin
+        state_d = WAIT_ATTN;
       end else begin
         state_d = RESPOND;
       end
@@ -136,6 +198,10 @@ module rcif_scheduler_stub #(
     end else if (state_q == WAIT_DMA && dma_rsp_valid) begin
       status_d = dma_rsp_status;
       result_d = dma_rsp_result;
+      state_d = RESPOND;
+    end else if (state_q == WAIT_ATTN && attn_rsp_valid) begin
+      status_d = RCIF_STATUS_OK[STATUS_W-1:0];
+      result_d = {{(DATA_W-32){attn_rsp_dot[31]}}, attn_rsp_dot};
       state_d = RESPOND;
     end else if (complete_cpl) begin
       state_d = IDLE;
@@ -151,6 +217,7 @@ module rcif_scheduler_stub #(
       accepted_count_q <= '0;
       completed_count_q <= '0;
       error_count_q <= '0;
+      fault_overflow_count_q <= '0;
     end else begin
       state_q <= state_d;
       request_id_q <= request_id_d;
@@ -171,12 +238,36 @@ module rcif_scheduler_stub #(
       if (complete_cpl) begin
         completed_count_q <= completed_count_q + 1'b1;
       end
+      if (fault_overflow) begin
+        fault_overflow_count_q <= fault_overflow_count_q + 1'b1;
+      end
     end
   end
 
   assign cpl_request_id_o = request_id_q;
   assign cpl_status_o = status_q;
   assign cpl_result_o = result_q;
+
+  rcif_kv_fault_unit #(
+    .REQ_ID_W(REQ_ID_W),
+    .VIRT_PAGE_W(RCIF_KV_VIRT_PAGE_W),
+    .CAUSE_W(16),
+    .DEPTH(4)
+  ) u_kv_fault_unit (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .push_valid_i(fault_push_valid),
+    .push_ready_o(fault_push_ready),
+    .push_request_id_i(request_id_q),
+    .push_virt_page_i(kv_rsp_result[RCIF_KV_VIRT_PAGE_LSB +: RCIF_KV_VIRT_PAGE_W]),
+    .push_cause_i(kv_rsp_status[15:0]),
+    .overflow_o(fault_overflow),
+    .pop_valid_o(fault_pop_valid),
+    .pop_ready_i(fault_pop_ready),
+    .pop_request_id_o(fault_request_id),
+    .pop_virt_page_o(fault_virt_page),
+    .pop_cause_o(fault_cause)
+  );
 
   rcif_kv_mmu #(
     .DATA_W(DATA_W),
@@ -193,6 +284,22 @@ module rcif_scheduler_stub #(
     .rsp_ready_i(kv_rsp_ready),
     .rsp_status_o(kv_rsp_status),
     .rsp_result_o(kv_rsp_result)
+  );
+
+  rcif_qk_dot_array #(
+    .ELEM_W(8),
+    .VEC_LEN(4),
+    .ACC_W(32)
+  ) u_qk_dot_array (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_valid_i(attn_req_valid),
+    .req_ready_o(attn_req_ready),
+    .req_query_i(cmd_payload_i[31:0]),
+    .req_key_i(cmd_payload_i[63:32]),
+    .rsp_valid_o(attn_rsp_valid),
+    .rsp_ready_i(attn_rsp_ready),
+    .rsp_dot_o(attn_rsp_dot)
   );
 
   rcif_dma #(

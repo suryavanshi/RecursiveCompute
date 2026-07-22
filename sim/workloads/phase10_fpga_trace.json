@@ -1,0 +1,8 @@
+{
+  "trace_name": "phase10_fpga_agentic_smoke",
+  "cycle_tolerance": 0.05,
+  "requests": [
+    {"request_id": "coding-turn-a", "priority": 3, "output_tokens": 3},
+    {"request_id": "coding-turn-b", "priority": 1, "output_tokens": 5}
+  ]
+}

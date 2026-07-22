@@ -92,7 +92,12 @@ Current command opcodes:
 | `0x0010` | GET_COUNTER | Return a scheduler counter selected by payload byte 0. |
 | `0x0020` | KV_MAP | Install or update a virtual KV page mapping. |
 | `0x0021` | KV_TRANSLATE | Translate a virtual KV page through the reference KV MMU. |
+| `0x0022` | KV_GET_FAULT | Pop the oldest queued KV page-fault record. |
 | `0x0030` | DMA_COPY | Validate and complete a DMA copy descriptor through the DMA skeleton. |
+| `0x0031` | DMA_INDEX_WRITE | Program a physical page into the gather index table. |
+| `0x0032` | DMA_GATHER | Copy a non-contiguous page list into contiguous destination pages. |
+| `0x0033` | DMA_ECC_INJECT | Verification hook that corrupts stored page parity. |
+| `0x0040` | ATTN_QK_DOT | Execute the first four-lane signed-int8 Q·K tile. |
 | other | unsupported | Complete with status `1` and result containing opcode. |
 
 Current error status:
@@ -109,6 +114,9 @@ Current error status:
 | `7` | DMA descriptor length was zero. |
 | `8` | Reserved DMA payload bits were nonzero. |
 | `9` | DMA descriptor page range exceeded the current gather/scatter SRAM model. |
+| `10` | KV fault queue was empty. |
+| `11` | DMA gather list contained an unprogrammed entry. |
+| `12` | DMA detected a page parity mismatch. |
 
 Current counter selectors:
 
@@ -117,6 +125,7 @@ Current counter selectors:
 | `0` | accepted | Commands accepted by the scheduler. |
 | `1` | completed | Completions handshaked by the host. |
 | `2` | errors | Commands that completed with nonzero status. |
+| `3` | fault overflows | Fault records overwritten because firmware did not drain the queue. |
 
 Current KV command payload:
 
@@ -143,6 +152,35 @@ page-backed SRAM array and returns an XOR checksum of the copied words as the
 completion result. This is a deterministic Verilator-visible prototype for
 gather/scatter completion behavior, not a final local DRAM or AXI memory mover.
 
+Accepted DMA descriptors pass through a four-entry descriptor-fetch FIFO before
+gather/scatter execution. This creates the stable queued boundary needed for a
+future SRAM/host descriptor reader while retaining exactly-once completion and
+backpressure behavior in the current single-command scheduler.
+
+The gather/scatter prototype also has a programmable 256-entry page-index
+table. Indirect descriptors validate every list entry before modifying the
+destination and then gather non-contiguous source pages into consecutive SRAM
+pages. This models the page-list access pattern needed by paged attention and
+MoE expert/activation movement.
+
+Each valid SRAM-model page carries even parity. A descriptor scans its complete
+source list for parity failures before the first destination write, so injected
+errors fail deterministically without partial copies. The injection opcode is a
+DV hook; production error injection will move behind privileged diagnostics.
+
+The KV MMU now separates the TLB from its SRAM-resident reference page table.
+`KV_MAP` updates the page table and warms the bounded TLB. A translation that
+misses in the TLB issues a page walk, refills the TLB on a hit, and returns the
+existing KV-miss status when no page-table entry exists. The small TLB uses
+deterministic round-robin replacement so page-walk behavior is reproducible in
+simulation.
+
+Unmapped KV translations also enqueue a firmware-visible fault record containing
+the cause, original request id, and virtual page. `KV_GET_FAULT` drains these
+records in FIFO order. A full queue overwrites its oldest record, retains the
+newest fault, and increments a visible overflow counter so fault traffic cannot
+deadlock the single-command smoke scheduler.
+
 ## 5. Decode Dataflow
 
 The target decode path for one generated token is:
@@ -158,6 +196,40 @@ The target decode path for one generated token is:
 9. Completion queue reports token output or graph completion.
 
 The eventual token scheduler must be deterministic for a fixed descriptor stream. That property is central to low jitter and reproducible verification.
+
+The Phase 4 standalone attention engine extends the command-level QK bring-up
+path with a programmable non-contiguous page reader, dynamic MHA/GQA/MQA head
+mapping, composable explicit/window/sink masks, online fixed-point softmax, and
+V reduction. It remains outside the compact 64-bit smoke command ABI because a
+complete attention descriptor requires query, page-list, head, context, and
+mask state. A later scheduler phase will bind that engine interface to frozen
+multiword descriptors and the Phase 3 MMU/DMA request path.
+
+The Phase 5 standalone tensor engine follows the same integration pattern. A
+DMA-facing programming boundary loads four packed rows and their zero-point,
+scale, bias, and normalization metadata. A request then executes deterministic
+INT8/INT4 GEMV, saturation, activation, and optional integer RMSNorm while the
+ready/valid result boundary holds all data and status stable under
+backpressure.
+
+The Phase 6 token scheduler maps fixed 128-bit graph descriptors onto the DMA,
+paged-attention, and tensor boundaries. An eight-bit dependency scoreboard
+permits descriptor storage order to differ from execution order. The bounded
+prototype executes one engine node at a time, chooses pending requests by
+priority at graph boundaries, and retains FIFO order within a priority. A
+completion FIFO absorbs host backpressure, while a cycle-independent issue and
+finish trace makes repeated execution directly comparable. The bounded default
+allocates 6,400 cycles per graph and guarantees accepted priority-3 requests
+retire internally within 32,000 cycles; sticky runtime monitors cover both the
+per-graph service assumption and the queue-derived latency bound. The full
+descriptor contract is in `docs/specs/token_graph_descriptor.md`.
+
+The Phase 10 reduced FPGA shell preserves this graph boundary and adds an AXI4
+external-memory reader for a vendor DDR/HBM controller. Its pre-board backend
+uses the same authenticated runtime path, executes a four-token attention plus
+INT8 projection graph, and accounts KV residency, host-tier faults, migrations,
+and cycles. The portable contract and physical-board closure gates are frozen
+in `docs/specs/fpga_emulation.md`.
 
 ## 6. KV Memory Model
 
@@ -308,7 +380,8 @@ The first Verilator smoke test exercises:
 - completion backpressure.
 - command FIFO burst ordering;
 - scheduler counters;
-- KV map, translate, miss, remap, full-table, and reserved-bit behavior.
+- KV map, translate, miss, remap, full-table, reserved-bit, page-walk refill,
+  and queued fault-report behavior.
 - DMA descriptor accept, zero-length fault, and reserved-bit fault behavior.
 
 ## 11. Implementation Milestones
@@ -328,6 +401,12 @@ Milestone B:
 - Performance counters.
 - Fault/event queue.
 
+Milestone B control-plane software status: complete for the Phase 8 bounded
+simulation. The frozen MMIO/ring ABI has freestanding RV64 firmware, secure boot
+and anti-rollback policy, KV fault replay, a host driver prototype, and
+end-to-end DV. Instruction-accurate core and operating-system integration are
+later platform milestones.
+
 Milestone C:
 
 - KV MMU reference RTL with a reusable TLB and map/translate command support.
@@ -339,3 +418,11 @@ Milestone D:
 - Paged attention RTL slice.
 - Golden-model comparison tests.
 - Randomized page layout tests.
+
+Milestone E, bounded full-chip verification:
+
+- Assertion-enabled top-level command/completion checking.
+- Deterministic random reset and backpressure regression.
+- Independent security and memory-safety invariant monitors.
+- Agentic descriptor-trace replay and complete required cross coverage.
+- 90% minimum Verilator line coverage with explicit production signoff gates.

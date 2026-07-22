@@ -656,14 +656,23 @@ Deliverables:
 
 Current RTL status:
 
-- `rcif_kv_tlb.sv` and `rcif_kv_mmu.sv` provide a small map/translate table for
-  smoke-level KV page metadata.
+- `rcif_kv_tlb.sv`, `rcif_kv_page_walker.sv`, and `rcif_kv_mmu.sv` provide a
+  bounded replacement TLB backed by an SRAM-resident map/translate page table.
+  TLB misses walk the page table, refill on a hit, and deterministically report
+  an unmapped-page fault through the command completion status. Faults are also
+  captured in a bounded firmware-visible FIFO with request id, virtual page,
+  cause, and an overflow counter.
 - `rcif_dma.sv` validates DMA copy descriptors and delegates successful copies
-  to `rcif_gather_scatter.sv`.
+  through a queued `rcif_dma_desc_fetch.sv` boundary before delegating them to
+  `rcif_gather_scatter.sv`.
 - `rcif_gather_scatter.sv` is a deterministic page-backed SRAM prototype that
-  copies one word per page and reports an XOR checksum. It proves the scheduler
-  and DMA completion boundary for data movement, but it is not yet a local DRAM, AXI,
-  permission, ECC, or descriptor-fetch implementation.
+  supports contiguous copies plus a programmable non-contiguous page list,
+  copies one word per page, and reports an XOR checksum. It proves the scheduler
+  and DMA completion boundary for data movement, but it is not yet a local DRAM,
+  AXI, permission, or ECC implementation.
+  The current verification model does include per-page parity and deterministic
+  injection/detection hooks; production SECDED ECC and scrubbing remain future
+  memory-controller work.
 
 Exit criteria:
 
@@ -692,6 +701,24 @@ Deliverables:
 - `dv/tests/attention_random/`
 - coverage plan for sequence lengths, page sizes, masks, formats.
 
+Current RTL status:
+
+- `rcif_attn_engine.sv` streams logical tokens through a programmable
+  logical-to-physical page list, a one-result QK pipeline, online softmax, and
+  V reduction. The bounded prototype accepts one unmasked KV token per cycle
+  after fill and propagates ready/valid backpressure without changing results.
+- The page reader supports non-contiguous physical pages. Runtime query/KV
+  head counts implement MHA-compatible, GQA, and MQA address mapping.
+- Explicit masks compose with sliding-window and attention-sink masks. Empty
+  attention returns a zero vector with an explicit all-masked indication.
+- The current signed-int8/Q1.15 power-of-two numeric mode is bit-exact against
+  the Python golden model. It is an architecture/DV mode, not the final
+  production exponential or KV format.
+- Directed Verilator coverage lives in `dv/tests/attention_directed/`; seeded
+  randomized golden checks live in `dv/tests/attention_random/`; the coverage
+  matrix and remaining production gaps are recorded in
+  `dv/tests/attention_coverage_plan.md`.
+
 Exit criteria:
 
 - Matches golden model within defined tolerance.
@@ -717,6 +744,27 @@ Deliverables:
 - `dv/tests/tensor_formats/`
 - `docs/specs/numerics.md`
 
+Current RTL status:
+
+- `rcif_tensor_array.sv` implements a bounded four-input/four-output GEMV
+  engine. A ready/valid row-programming port represents DMA delivery of packed
+  weights, zero points, Q8.8 scales, biases, and normalization gains.
+- `rcif_weight_decode.sv` supports signed INT8 and packed signed INT4;
+  `rcif_mac_tile.sv` performs exact signed 32-bit accumulation;
+  `rcif_scale_apply.sv` defines rounding, bias, and INT16 saturation.
+- `rcif_accumulator_bank.sv`, `rcif_activation_unit.sv`, and
+  `rcif_norm_unit.sv` provide stable output storage, bypass/ReLU/INT8-clamp
+  activation, and an optional integer RMSNorm post-process.
+- Unsupported stored formats or activation modes fail deterministically with a
+  configuration-error response. Output payload and status remain stable under
+  backpressure.
+- Bit-exact Python references, seeded format tests, directed Verilator tests,
+  and the remaining coverage gaps live in `dv/tests/tensor_formats/`.
+
+The compact command scheduler does not yet expose the multiword tensor
+descriptor. That binding belongs to Phase 6 graph decode; Phase 5 freezes the
+engine-side ready/valid and row-load boundaries it will target.
+
 Exit criteria:
 
 - All numeric modes pass tolerance tests.
@@ -740,6 +788,30 @@ Deliverables:
 - `rtl/scheduler/`
 - `dv/tests/token_step/`
 - `docs/specs/token_graph_descriptor.md`
+
+Current RTL status:
+
+- `rcif_token_scheduler.sv` executes fixed 128-bit token-graph nodes from a
+  bounded descriptor SRAM. It scans nodes deterministically, issues only after
+  dependency masks are satisfied, and reports invalid or cyclic graphs without
+  hanging.
+- The scheduler connects the Phase 3 DMA, Phase 4 paged-attention, and Phase 5
+  tensor engines. A `USE_PREVIOUS` tensor node consumes the immediately prior
+  attention/engine result, while the graph completion returns a deterministic
+  XOR signature across node results.
+- Four request slots and `rcif_qos_arbiter.sv` select the highest priority at
+  graph boundaries with submission-age tie breaking. Running graphs are not
+  preempted in this bounded implementation. A conservative 6,400-cycle graph
+  service allocation yields a 32,000-cycle priority-3 admission-to-retirement
+  bound across the active graph, all possible older equal-priority requests,
+  and the request itself. Directed DV exercises the bound behind a
+  maximum-length DMA graph and a queued low-priority request.
+- `rcif_replay_trace.sv` captures stable issue/finish events and
+  `rcif_completion_writer.sv` decouples graph retirement from completion
+  backpressure.
+- Directed Verilator coverage in `dv/tests/token_step/` executes one block, a
+  two-layer toy graph, deterministic replay, priority ordering, and dependency
+  deadlock reporting.
 
 Exit criteria:
 
@@ -767,11 +839,46 @@ Deliverables:
 - `dv/tests/collectives/`
 - `docs/specs/collective_protocol.md`
 
+Current RTL status:
+
+- `rcif_collective_protocol_pkg.sv` freezes the versioned 64-bit packet header,
+  operation/phase encoding, CRC helper, and completion status contract.
+- `rcif_credit_link.sv` implements a parameterized ready/valid credit FIFO with
+  occupancy and backpressure assertions. The bounded state proof exhausts ring
+  sizes two through eight and credit depths one through four under the legal
+  eventual-receiver-ready assumption.
+- `rcif_topology_table.sv` programs node activity, partition ownership, ring
+  successors, tree parents, per-destination next hops, and directed link state.
+- `rcif_collective_engine.sv` executes modular-sum ring AllReduce, tree
+  reduce/broadcast, and source-to-destination MoE AllToAll. Every hop checks
+  membership, partition, link state, and route bounds.
+- Transient faults retry without advancing collective state. Persistent faults
+  exhaust a per-command budget, identify the failed edge, and atomically return
+  zero payloads with `committed=0`; no partial reduction or routing result is
+  visible.
+- Directed four-node Verilator coverage completes a sharded reduction with
+  ring and tree algorithms, transposes a full MoE exchange, exercises transient
+  recovery, proves persistent-fault containment, and rejects a partition
+  escape. Remaining PHY/UVM scale coverage is recorded in the coverage plan.
+- `rcif_collective_cluster.sv` instantiates four independent endpoint state
+  machines connected only through four `rcif_credit_link` FIFOs. Its Verilator
+  regression completes two back-to-back sharded layers under independent,
+  bounded-fair receiver backpressure and checks physical credits every cycle.
+- The finite-state protocol proof covers ring, tree, and routed AllToAll for two
+  through eight nodes and credit depths one through four. It explores packet
+  ownership, route position, link occupancy, credits, fair stalls, transient
+  retry, and persistent retry exhaustion; every path reaches completion or a
+  reported failure without a terminal deadlock.
+
 Exit criteria:
 
 - Deadlock-free proof for credit protocol within bounded topology.
 - Multi-chip simulation completes sharded layer.
 - Fault injection is contained and reported.
+
+Exit criteria status: complete for the bounded Phase 7 configuration. Larger
+topologies, concurrent virtual channels, and PHY fault behavior remain Phase 9
+verification scope rather than Phase 7 protocol gaps.
 
 ### Phase 8: Firmware and Driver
 
@@ -793,12 +900,37 @@ Deliverables:
 - `runtime/driver/`
 - `docs/specs/register_map.md`
 
+Current implementation status:
+
+- `docs/specs/register_map.md` freezes the versioned global register block,
+  coherent command/completion/fault rings, queue ownership and memory-ordering
+  rules, 32-byte entries, stable 64-bit counter reads, and secure-boot state.
+- Freestanding RV64-compatible C firmware provides the reset/link environment,
+  ROM-authenticated manifest and anti-rollback flow, queue initialization,
+  sticky debug lock, KV fault allocation/replay hook, and telemetry accessors.
+  Signature verification and OTP updates deliberately remain immutable ROM
+  service boundaries rather than mutable-firmware cryptography.
+- `runtime/driver/` provides the host prototype and deterministic control-plane
+  device model. It probes the ABI, applies command-ring backpressure, submits
+  encoded Phase 6 graphs, drains completions, handles replayable KV faults
+  without reset, and exposes saturating performance counters.
+- Phase 8 DV boots and fails the actual C firmware against a simulated MMIO
+  aperture, compiles all firmware C freestanding with warnings as errors, and
+  covers authenticated boot, tamper and rollback rejection, queue setup/full
+  behavior, graph completion/deadlock, fault recovery, counter validation, and
+  warm-reset debug-lock retention.
+
 Exit criteria:
 
 - Firmware boots in simulation.
 - Host can submit descriptor graphs.
 - Faults are handled without full-chip reset.
 - Performance counters are readable and validated.
+
+Exit criteria status: complete in the bounded control-plane/MMIO simulation.
+Instruction-accurate RISC-V execution, OS-specific ioctl/IOMMU integration,
+production asymmetric signature acceleration, and physical OTP provisioning
+remain Phase 9/10 and platform-port work.
 
 ### Phase 9: Full-Chip Verification
 
@@ -839,6 +971,39 @@ Critical assertions:
 - No collective packet escape outside partition.
 - No deadlock under legal backpressure assumptions.
 
+Current implementation status:
+
+- All seven required verification plans exist under `docs/verification/`, with
+  explicit stimulus, scoreboards, assertions, coverage, and closure gates.
+- Assertion-enabled top-level RTL checks accepted/completed conservation and
+  completion stability under backpressure. The full-chip Verilator suite adds
+  1,024 deterministic randomized commands, reset stress, directed subsystem
+  flows, coverage collection, and a 90% bounded line-coverage gate.
+- Independent executable monitors cover tenant KV isolation, DMA apertures,
+  exact completion matching, refcount safety, dependency readiness, collective
+  partition containment, and fair-backpressure progress. Negative tests prove
+  each critical monitor can fire.
+- A reusable agentic descriptor trace crosses KV, DMA, scheduler, and collective
+  behavior. The required page-size/precision/mask/priority/fault cross has 1,280
+  bins and permits no missing bins.
+- The bounded design has one clock/reset domain. Actual SDF gate simulation,
+  CDC/RDC on production domains, scan/X-prop, tenant/partition RTL tags, and the
+  90% tapeout code-coverage target remain explicit signoff gates in
+  `docs/verification/coverage_waivers.md`; they are not claimed without a
+  synthesized netlist, technology libraries, or the missing production ports.
+
+Exit criteria:
+
+- `make phase9` and `make local-regress` pass with no assertion failure.
+- All required functional cross bins are hit and bounded line coverage is at
+  least 90%.
+- No open item is misclassified as tapeout signoff; production-library and
+  interface gates remain tracked to closure.
+
+Exit criteria status: complete for the reproducible bounded RTL/full-chip
+configuration. Physical tapeout signoff remains conditional on the documented
+netlist, library, CDC/RDC, scan, X-prop, and production security-tag gates.
+
 ### Phase 10: FPGA/Emulation Prototype
 
 Goal: validate firmware, descriptors, and memory behavior before ASIC.
@@ -852,11 +1017,51 @@ Tasks:
 5. Validate page fault and migration behavior.
 6. Validate host runtime integration.
 
+Deliverables:
+
+- `fpga/rtl/`
+- `fpga/vivado/build.tcl`
+- `fpga/prototype.py`
+- `dv/tests/phase10/`
+- `docs/specs/fpga_emulation.md`
+
+Current implementation status:
+
+- `rcif_fpga_top.sv` maps the reduced Phase 6 D-chip datapath (descriptor SRAM,
+  token scheduler, DMA, paged attention, four-lane tensor array, and completion
+  path) into a board-neutral FPGA shell. A synthesizable AXI4 burst reader is
+  the explicit vendor DDR/HBM controller boundary. The Vivado flow emits a
+  synthesis checkpoint plus timing and utilization reports for a configurable
+  part; board pin and controller overlays are intentionally not guessed.
+- The Phase 10 emulation backend implements the existing Phase 8 `RcifDevice`
+  boundary, so authenticated firmware boot and `RcifDriver` submit the frozen
+  128-bit graph nodes without a private test-only submission path.
+- Each toy-model token executes a real DMA -> online-attention -> INT8 GEMV ->
+  completion graph. Numeric attention and projection vectors match the
+  independent golden models exactly, while completion signatures remain stable
+  across replay.
+- A bounded external-memory proxy provides local DDR residency, host-tier KV
+  pages, deterministic capacity/eviction, page faults, migration, byte and
+  cycle accounting, and validated fault/recovery telemetry. Directed eviction
+  proves migration and replay complete without reset.
+- The synthetic Phase 10 agentic trace submits eight token graphs through the
+  host runtime. It measures 662 modeled FPGA cycles against 662 analytically
+  predicted cycles, within the frozen 5% pre-board tolerance. Verilator also
+  elaborates the complete FPGA shell and simulates AXI burst length,
+  backpressure, response forwarding, and return-to-idle behavior.
+
 Exit criteria:
 
 - Runtime submits real token graphs.
 - FPGA produces numerically valid outputs for toy model.
 - Measured behavior matches simulator within agreed tolerance.
+
+Exit criteria status: complete for the reproducible pre-board FPGA RTL and
+emulation configuration via `make phase10`. Physical-board acceptance remains
+conditional on selecting a board, integrating licensed vendor DDR/HBM and host
+interface IP, supplying a pin/clock overlay, closing post-route timing, and
+running the frozen trace on hardware; no bitstream or physical measurement is
+claimed without those inputs.
 
 ### Phase 11: Physical Design Planning
 

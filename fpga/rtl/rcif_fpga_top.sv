@@ -1,0 +1,117 @@
+module rcif_fpga_top #(
+  parameter int AXI_ADDR_W = 32,
+  parameter int AXI_DATA_W = 128
+) (
+  input  logic clk_i,
+  input  logic rst_ni,
+  input  logic graph_write_valid_i,
+  output logic graph_write_ready_o,
+  input  logic [4:0] graph_write_index_i,
+  input  logic [127:0] graph_write_descriptor_i,
+  input  logic req_valid_i,
+  output logic req_ready_o,
+  input  logic [31:0] req_request_id_i,
+  input  logic [4:0] req_graph_base_i,
+  input  logic [3:0] req_graph_nodes_i,
+  input  logic [1:0] req_priority_i,
+  input  logic query_write_valid_i,
+  input  logic [2:0] query_write_head_i,
+  input  logic [31:0] query_write_data_i,
+  input  logic page_write_valid_i,
+  input  logic [2:0] page_write_slot_i,
+  input  logic [2:0] page_write_phys_i,
+  input  logic kv_write_valid_i,
+  input  logic [2:0] kv_write_phys_page_i,
+  input  logic [1:0] kv_write_offset_i,
+  input  logic [1:0] kv_write_head_i,
+  input  logic [31:0] kv_write_key_i,
+  input  logic [31:0] kv_write_value_i,
+  input  logic weight_write_valid_i,
+  output logic weight_write_ready_o,
+  input  logic [1:0] weight_write_row_i,
+  input  logic [1:0] weight_write_format_i,
+  input  logic [31:0] weight_write_data_i,
+  input  logic signed [7:0] weight_write_zero_point_i,
+  input  logic signed [15:0] weight_write_scale_q8_8_i,
+  input  logic signed [31:0] weight_write_bias_i,
+  input  logic signed [15:0] weight_write_norm_gain_q8_8_i,
+  output logic cpl_valid_o,
+  input  logic cpl_ready_i,
+  output logic [31:0] cpl_request_id_o,
+  output logic [31:0] cpl_status_o,
+  output logic [63:0] cpl_result_o,
+  input  logic dram_req_valid_i,
+  output logic dram_req_ready_o,
+  input  logic [AXI_ADDR_W-1:0] dram_req_addr_i,
+  input  logic [7:0] dram_req_beats_i,
+  output logic dram_data_valid_o,
+  input  logic dram_data_ready_i,
+  output logic [AXI_DATA_W-1:0] dram_data_o,
+  output logic dram_data_last_o,
+  output logic dram_error_o,
+  output logic [AXI_ADDR_W-1:0] m_axi_araddr_o,
+  output logic [7:0] m_axi_arlen_o,
+  output logic m_axi_arvalid_o,
+  input  logic m_axi_arready_i,
+  input  logic [AXI_DATA_W-1:0] m_axi_rdata_i,
+  input  logic [1:0] m_axi_rresp_i,
+  input  logic m_axi_rlast_i,
+  input  logic m_axi_rvalid_i,
+  output logic m_axi_rready_o
+);
+  logic [127:0] unused_trace_event;
+  logic [6:0] unused_trace_count;
+  logic unused_trace_overflow;
+  logic [15:0] unused_qos_bound, unused_qos_latency;
+  logic [31:0] unused_qos_request;
+  logic unused_qos_violation;
+
+  rcif_token_scheduler #(
+    .MAX_DESCRIPTORS(32), .MAX_NODES(8), .REQUEST_SLOTS(4),
+    .ATTN_MAX_PAGES(8), .ATTN_PAGE_TOKENS(4), .LANES(4)
+  ) u_scheduler (
+    .clk_i(clk_i), .rst_ni(rst_ni),
+    .graph_write_valid_i(graph_write_valid_i),
+    .graph_write_ready_o(graph_write_ready_o),
+    .graph_write_index_i(graph_write_index_i),
+    .graph_write_descriptor_i(graph_write_descriptor_i),
+    .req_valid_i(req_valid_i), .req_ready_o(req_ready_o),
+    .req_request_id_i(req_request_id_i), .req_graph_base_i(req_graph_base_i),
+    .req_graph_nodes_i(req_graph_nodes_i), .req_priority_i(req_priority_i),
+    .query_write_valid_i(query_write_valid_i), .query_write_head_i(query_write_head_i),
+    .query_write_data_i(query_write_data_i), .page_write_valid_i(page_write_valid_i),
+    .page_write_slot_i(page_write_slot_i), .page_write_phys_i(page_write_phys_i),
+    .kv_write_valid_i(kv_write_valid_i), .kv_write_phys_page_i(kv_write_phys_page_i),
+    .kv_write_offset_i(kv_write_offset_i), .kv_write_head_i(kv_write_head_i),
+    .kv_write_key_i(kv_write_key_i), .kv_write_value_i(kv_write_value_i),
+    .weight_write_valid_i(weight_write_valid_i),
+    .weight_write_ready_o(weight_write_ready_o),
+    .weight_write_row_i(weight_write_row_i), .weight_write_format_i(weight_write_format_i),
+    .weight_write_data_i(weight_write_data_i),
+    .weight_write_zero_point_i(weight_write_zero_point_i),
+    .weight_write_scale_q8_8_i(weight_write_scale_q8_8_i),
+    .weight_write_bias_i(weight_write_bias_i),
+    .weight_write_norm_gain_q8_8_i(weight_write_norm_gain_q8_8_i),
+    .cpl_valid_o(cpl_valid_o), .cpl_ready_i(cpl_ready_i),
+    .cpl_request_id_o(cpl_request_id_o), .cpl_status_o(cpl_status_o),
+    .cpl_result_o(cpl_result_o), .trace_clear_i(1'b0),
+    .trace_read_index_i(6'b0), .trace_read_event_o(unused_trace_event),
+    .trace_event_count_o(unused_trace_count), .trace_overflow_o(unused_trace_overflow),
+    .qos_bound_cycles_o(unused_qos_bound), .qos_last_latency_o(unused_qos_latency),
+    .qos_last_request_id_o(unused_qos_request),
+    .qos_bound_violation_o(unused_qos_violation)
+  );
+
+  rcif_ddr_axi_reader #(.ADDR_W(AXI_ADDR_W), .DATA_W(AXI_DATA_W)) u_ddr (
+    .clk_i(clk_i), .rst_ni(rst_ni), .req_valid_i(dram_req_valid_i),
+    .req_ready_o(dram_req_ready_o), .req_addr_i(dram_req_addr_i),
+    .req_beats_i(dram_req_beats_i), .data_valid_o(dram_data_valid_o),
+    .data_ready_i(dram_data_ready_i), .data_o(dram_data_o),
+    .data_last_o(dram_data_last_o), .error_o(dram_error_o),
+    .m_axi_araddr_o(m_axi_araddr_o), .m_axi_arlen_o(m_axi_arlen_o),
+    .m_axi_arvalid_o(m_axi_arvalid_o), .m_axi_arready_i(m_axi_arready_i),
+    .m_axi_rdata_i(m_axi_rdata_i), .m_axi_rresp_i(m_axi_rresp_i),
+    .m_axi_rlast_i(m_axi_rlast_i), .m_axi_rvalid_i(m_axi_rvalid_i),
+    .m_axi_rready_o(m_axi_rready_o)
+  );
+endmodule

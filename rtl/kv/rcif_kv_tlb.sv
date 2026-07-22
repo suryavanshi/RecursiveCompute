@@ -36,9 +36,10 @@ module rcif_kv_tlb #(
   logic free_found;
   logic [IDX_W-1:0] free_index;
   logic [IDX_W-1:0] map_index;
+  logic [IDX_W-1:0] replace_index_q;
 
-  assign map_ready_o = map_hit || free_found;
-  assign map_index = map_hit ? map_hit_index : free_index;
+  assign map_ready_o = 1'b1;
+  assign map_index = map_hit ? map_hit_index : (free_found ? free_index : replace_index_q);
 
   always_comb begin
     lookup_hit = 1'b0;
@@ -71,6 +72,7 @@ module rcif_kv_tlb #(
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
+      replace_index_q <= '0;
       for (int idx = 0; idx < ENTRIES; idx++) begin
         valid_q[idx] <= 1'b0;
         virt_page_q[idx] <= '0;
@@ -84,6 +86,13 @@ module rcif_kv_tlb #(
       phys_page_q[map_index] <= map_phys_page_i;
       tier_q[map_index] <= map_tier_i;
       format_q[map_index] <= map_format_i;
+      if (!map_hit && !free_found) begin
+        if (replace_index_q == IDX_W'(ENTRIES - 1)) begin
+          replace_index_q <= '0;
+        end else begin
+          replace_index_q <= replace_index_q + 1'b1;
+        end
+      end
     end
   end
 

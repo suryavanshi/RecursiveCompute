@@ -48,6 +48,8 @@ ALLOWED_TARGETS = {
     "local-verilate",
     "local-sim",
     "local-regress",
+    "local-phase9",
+    "local-phase10",
 }
 
 

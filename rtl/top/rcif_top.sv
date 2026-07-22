@@ -69,4 +69,23 @@ module rcif_top #(
     .cpl_status_o(cpl_status_o),
     .cpl_result_o(cpl_result_o)
   );
+
+`ifndef SYNTHESIS
+  rcif_top_assertions #(
+    .REQ_ID_W(REQ_ID_W),
+    .STATUS_W(STATUS_W),
+    .DATA_W(DATA_W),
+    .MAX_OUTSTANDING(CMD_QUEUE_DEPTH + 1)
+  ) u_top_assertions (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .cmd_valid_i(cmd_valid_i),
+    .cmd_ready_i(cmd_ready_o),
+    .cpl_valid_i(cpl_valid_o),
+    .cpl_ready_i(cpl_ready_i),
+    .cpl_request_id_i(cpl_request_id_o),
+    .cpl_status_i(cpl_status_o),
+    .cpl_result_i(cpl_result_o)
+  );
+`endif
 endmodule

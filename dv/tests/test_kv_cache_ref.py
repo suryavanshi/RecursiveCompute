@@ -2,6 +2,7 @@ import math
 import unittest
 
 from dv.golden.kv_cache_ref import PagedKVCache, attention_decode, build_debug_cache
+from dv.golden.attention_ref import quantized_qk_dot
 from dv.golden.tensor_ref import matmul, rms_norm
 
 
@@ -39,6 +40,14 @@ class TensorRefTest(unittest.TestCase):
         self.assertEqual(out, [2.0, 3.0])
 
 
+class AttentionTileRefTest(unittest.TestCase):
+    def test_signed_int8_qk_dot(self) -> None:
+        self.assertEqual(quantized_qk_dot([1, -2, 3, 4], [5, 6, -7, 8]), 4)
+
+    def test_qk_dot_rejects_out_of_range(self) -> None:
+        with self.assertRaises(ValueError):
+            quantized_qk_dot([128], [1])
+
+
 if __name__ == "__main__":
     unittest.main()
-

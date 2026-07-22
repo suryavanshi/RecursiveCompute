@@ -1,0 +1,19 @@
+{
+  "trace_name": "phase9_agentic_descriptor_trace",
+  "dma_windows": {
+    "tenant-a": [4096, 8192],
+    "tenant-b": [8192, 12288]
+  },
+  "node_partitions": {
+    "0": "domain-a",
+    "1": "domain-a",
+    "2": "domain-b",
+    "3": "domain-b"
+  },
+  "operations": [
+    {"kind": "kv", "request_id": "repo-edit-001-kv", "tenant": "tenant-a", "virtual_page": 16, "physical_page": 256, "page_size": 16, "precision": "int4", "mask": "causal", "priority": 3, "fault": "none"},
+    {"kind": "dma", "request_id": "repo-edit-001-dma", "tenant": "tenant-a", "address": 4352, "length": 512, "page_size": 32, "precision": "fp4", "mask": "sliding", "priority": 2, "fault": "retry"},
+    {"kind": "scheduler", "request_id": "repo-edit-001-token", "dependencies": ["kv-ready", "weights-ready"], "page_size": 64, "precision": "fp8", "mask": "sink", "priority": 3, "fault": "kv_miss"},
+    {"kind": "collective", "request_id": "repo-edit-001-reduce", "source": 0, "destination": 1, "page_size": 128, "precision": "bf16", "mask": "sparse", "priority": 1, "fault": "ecc"}
+  ]
+}

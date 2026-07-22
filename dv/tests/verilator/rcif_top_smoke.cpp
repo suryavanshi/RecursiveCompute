@@ -3,6 +3,9 @@
 
 #include "Vrcif_top.h"
 #include "verilated.h"
+#if VM_COVERAGE
+#include "verilated_cov.h"
+#endif
 
 namespace {
 
@@ -11,7 +14,12 @@ constexpr uint16_t kOpcodeEcho = 0x0001;
 constexpr uint16_t kOpcodeGetCounter = 0x0010;
 constexpr uint16_t kOpcodeKvMap = 0x0020;
 constexpr uint16_t kOpcodeKvTranslate = 0x0021;
+constexpr uint16_t kOpcodeKvGetFault = 0x0022;
 constexpr uint16_t kOpcodeDmaCopy = 0x0030;
+constexpr uint16_t kOpcodeDmaIndexWrite = 0x0031;
+constexpr uint16_t kOpcodeDmaGather = 0x0032;
+constexpr uint16_t kOpcodeDmaEccInject = 0x0033;
+constexpr uint16_t kOpcodeAttnQkDot = 0x0040;
 constexpr uint32_t kStatusOk = 0;
 constexpr uint32_t kStatusUnsupportedOpcode = 1;
 constexpr uint32_t kStatusUnsupportedFlags = 2;
@@ -22,9 +30,13 @@ constexpr uint32_t kStatusKvReservedBits = 6;
 constexpr uint32_t kStatusDmaZeroLength = 7;
 constexpr uint32_t kStatusDmaReservedBits = 8;
 constexpr uint32_t kStatusDmaRange = 9;
+constexpr uint32_t kStatusFaultQueueEmpty = 10;
+constexpr uint32_t kStatusDmaIndexMiss = 11;
+constexpr uint32_t kStatusDmaEcc = 12;
 constexpr uint8_t kCounterAccepted = 0;
 constexpr uint8_t kCounterCompleted = 1;
 constexpr uint8_t kCounterErrors = 2;
+constexpr uint8_t kCounterFaultOverflows = 3;
 
 uint64_t pack_kv_entry(uint16_t virt_page, uint16_t phys_page, uint8_t tier, uint8_t format) {
   return static_cast<uint64_t>(virt_page) |
@@ -37,6 +49,25 @@ uint64_t pack_dma_desc(uint16_t src_page, uint16_t dst_page, uint16_t length) {
   return static_cast<uint64_t>(src_page) |
          (static_cast<uint64_t>(dst_page) << 16) |
          (static_cast<uint64_t>(length) << 32);
+}
+
+uint64_t pack_dma_index(uint8_t slot, uint16_t page) {
+  return static_cast<uint64_t>(slot) | (static_cast<uint64_t>(page) << 8);
+}
+
+uint64_t pack_fault(uint32_t request_id, uint16_t virt_page, uint16_t cause) {
+  return static_cast<uint64_t>(virt_page) |
+         (static_cast<uint64_t>(request_id) << 16) |
+         (static_cast<uint64_t>(cause) << 48);
+}
+
+uint64_t pack_qk_vectors(const int8_t query[4], const int8_t key[4]) {
+  uint64_t payload = 0;
+  for (uint8_t index = 0; index < 4; ++index) {
+    payload |= static_cast<uint64_t>(static_cast<uint8_t>(query[index])) << (8 * index);
+    payload |= static_cast<uint64_t>(static_cast<uint8_t>(key[index])) << (32 + 8 * index);
+  }
+  return payload;
 }
 
 uint64_t dma_page_seed(uint16_t page) {
@@ -267,6 +298,30 @@ int main(int argc, char** argv) {
 
   if (!send_command(
           top,
+          0x7104,
+          kOpcodeKvGetFault,
+          0,
+          0,
+          kStatusOk,
+          pack_fault(0x7100, 0x0010, kStatusKvMiss))) {
+    std::cerr << "rcif_top kv fault report smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
+          0x7105,
+          kOpcodeKvGetFault,
+          0,
+          0,
+          kStatusFaultQueueEmpty,
+          0)) {
+    std::cerr << "rcif_top kv empty fault queue smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
           0x7102,
           kOpcodeKvTranslate,
           0,
@@ -319,6 +374,18 @@ int main(int argc, char** argv) {
 
   if (!send_command(
           top,
+          0x7302,
+          kOpcodeKvTranslate,
+          0,
+          pack_kv_entry(0x0010, 0, 0, 0),
+          kStatusOk,
+          pack_kv_entry(0x0010, 0x0300, 4, 5))) {
+    std::cerr << "rcif_top kv page walk refill smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
           0x7301,
           kOpcodeKvMap,
           0,
@@ -327,6 +394,36 @@ int main(int argc, char** argv) {
           pack_kv_entry(0x0019, 0x0501, 1, 1) | (1ULL << 40))) {
     std::cerr << "rcif_top kv reserved bits smoke failed\n";
     return 1;
+  }
+
+  for (uint16_t index = 0; index < 5; ++index) {
+    const uint16_t virt_page = 0x0080 + index;
+    if (!send_command(
+            top,
+            0x7500 + index,
+            kOpcodeKvTranslate,
+            0,
+            pack_kv_entry(virt_page, 0, 0, 0),
+            kStatusKvMiss,
+            pack_kv_entry(virt_page, 0, 0, 0))) {
+      std::cerr << "rcif_top kv fault queue fill smoke failed at index " << index << "\n";
+      return 1;
+    }
+  }
+
+  for (uint16_t index = 0; index < 4; ++index) {
+    const uint16_t virt_page = 0x0081 + index;
+    if (!send_command(
+            top,
+            0x7600 + index,
+            kOpcodeKvGetFault,
+            0,
+            0,
+            kStatusOk,
+            pack_fault(0x7501 + index, virt_page, kStatusKvMiss))) {
+      std::cerr << "rcif_top kv fault queue order smoke failed at index " << index << "\n";
+      return 1;
+    }
   }
 
   if (!send_command(
@@ -338,6 +435,83 @@ int main(int argc, char** argv) {
           kStatusOk,
           dma_copy_checksum(0x0020, 0x0004))) {
     std::cerr << "rcif_top dma copy smoke failed\n";
+    return 1;
+  }
+
+  const uint16_t gather_pages[] = {0x0020, 0x0024, 0x0021};
+  uint64_t gather_checksum = 0;
+  for (uint16_t index = 0; index < 3; ++index) {
+    gather_checksum ^= dma_page_seed(gather_pages[index]);
+    if (!send_command(
+            top,
+            0x7700 + index,
+            kOpcodeDmaIndexWrite,
+            0,
+            pack_dma_index(index, gather_pages[index]),
+            kStatusOk,
+            pack_dma_index(index, gather_pages[index]))) {
+      std::cerr << "rcif_top dma index write smoke failed at index " << index << "\n";
+      return 1;
+    }
+  }
+
+  if (!send_command(
+          top,
+          0x7710,
+          kOpcodeDmaGather,
+          0,
+          pack_dma_desc(0, 0x0050, 3),
+          kStatusOk,
+          gather_checksum)) {
+    std::cerr << "rcif_top dma indirect gather smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
+          0x7711,
+          kOpcodeDmaCopy,
+          0,
+          pack_dma_desc(0x0050, 0x0060, 3),
+          kStatusOk,
+          gather_checksum)) {
+    std::cerr << "rcif_top dma gathered data copy smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
+          0x7720,
+          kOpcodeDmaEccInject,
+          0,
+          pack_dma_desc(0x0060, 0, 0),
+          kStatusOk,
+          pack_dma_desc(0x0060, 0, 0))) {
+    std::cerr << "rcif_top dma ecc injection smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
+          0x7721,
+          kOpcodeDmaCopy,
+          0,
+          pack_dma_desc(0x0060, 0x0080, 1),
+          kStatusDmaEcc,
+          0x0060)) {
+    std::cerr << "rcif_top dma ecc detection smoke failed\n";
+    return 1;
+  }
+
+  if (!send_command(
+          top,
+          0x7712,
+          kOpcodeDmaGather,
+          0,
+          pack_dma_desc(0x000a, 0x0070, 1),
+          kStatusDmaIndexMiss,
+          0x000a)) {
+    std::cerr << "rcif_top dma index miss smoke failed\n";
     return 1;
   }
 
@@ -389,18 +563,37 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (!send_get_counter(top, 0x7000, kCounterAccepted, kStatusOk, 27)) {
+  const int8_t query[4] = {1, -2, 3, 4};
+  const int8_t key[4] = {5, 6, -7, 8};
+  if (!send_command(
+          top,
+          0x7800,
+          kOpcodeAttnQkDot,
+          0,
+          pack_qk_vectors(query, key),
+          kStatusOk,
+          4)) {
+    std::cerr << "rcif_top signed int8 qk dot smoke failed\n";
+    return 1;
+  }
+
+  if (!send_get_counter(top, 0x7000, kCounterAccepted, kStatusOk, 48)) {
     std::cerr << "rcif_top accepted counter smoke failed\n";
     return 1;
   }
 
-  if (!send_get_counter(top, 0x7001, kCounterCompleted, kStatusOk, 28)) {
+  if (!send_get_counter(top, 0x7001, kCounterCompleted, kStatusOk, 49)) {
     std::cerr << "rcif_top completed counter smoke failed\n";
     return 1;
   }
 
-  if (!send_get_counter(top, 0x7002, kCounterErrors, kStatusOk, 8)) {
+  if (!send_get_counter(top, 0x7002, kCounterErrors, kStatusOk, 16)) {
     std::cerr << "rcif_top error counter smoke failed\n";
+    return 1;
+  }
+
+  if (!send_get_counter(top, 0x7004, kCounterFaultOverflows, kStatusOk, 1)) {
+    std::cerr << "rcif_top fault overflow counter smoke failed\n";
     return 1;
   }
 
@@ -410,5 +603,10 @@ int main(int argc, char** argv) {
   }
 
   std::cout << "rcif_top smoke passed\n";
+  #if VM_COVERAGE
+  if (argc > 1) {
+    VerilatedCov::write(argv[1]);
+  }
+  #endif
   return 0;
 }
